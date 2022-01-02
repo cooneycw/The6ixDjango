@@ -4,7 +4,7 @@ services:
   app:
     image: cooneycw/thesixdjango
     restart: unless-stopped
-    container_name: web
+    container_name: app
     command: >
       bash -c "python manage.py makemigrations &&
                python manage.py migrate &&
