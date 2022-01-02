@@ -9,6 +9,9 @@ COPY requirements.txt /code/
 
 RUN pip install -r /code/requirements.txt
 
+RUN pip3 install --upgrade \
+    boto3
+
 COPY . /code/
 
 
