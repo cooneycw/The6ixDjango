@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.prod
     container_name: app
-    command: gunicorn The6ix.wsgi --bind 0.0.0.0:8000
+    command: gunicorn The6ix.wsgi:application --bind 0.0.0.0:8000
     networks:
       - dbnet
     ports:
