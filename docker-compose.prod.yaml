@@ -5,15 +5,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    container_name: app
     command: gunicorn The6ix.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - static_volume:/home/app/web/staticfiles
       - media_volume:/home/app/web/mediafiles
     networks:
       - dbnet
-    expose:
-      - 8000
+      - nginx_network
+    ports:
+      - "8000:8000"
     environment:
       aws_access_key_id: ${aws_access_key_id}
       aws_secret_access_key: ${aws_secret_access_key}
@@ -21,12 +21,14 @@ services:
   nginx:
     build: ./nginx
     ports:
-      - 1337:80
+      - 80:80
     volumes:
       - static_volume:/home/app/web/staticfiles
       - media_volume:/home/app/web/mediafiles
     depends_on:
       - web
+    networks:
+      - nginx_network
 
 volumes:
   static_volume:
@@ -35,4 +37,6 @@ volumes:
 
 networks:
   dbnet:
+    external: true
+  nginx_network:
     external: true
