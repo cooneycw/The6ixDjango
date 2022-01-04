@@ -31,6 +31,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '.the6ixclan.ca']
 
+SECURE_SSL_REDIRECT = False
 
 # Application definition
 
