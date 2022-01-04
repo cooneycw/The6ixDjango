@@ -36,15 +36,15 @@ CSRF_TRUSTED_ORIGINS = ["https://the6ixclan.ca"]
 # Application definition
 
 INSTALLED_APPS = [
+    'The6ixDjango.apps.The6IxdjangoConfig',
+    'users.apps.UsersConfig',
+    'crispy_forms',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'crispy_forms',
-    'The6ixDjango.apps.The6IxdjangoConfig',
-    'users.apps.UsersConfig',
 ]
 
 MIDDLEWARE = [
