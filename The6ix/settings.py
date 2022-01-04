@@ -31,7 +31,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['localhost', '.the6ixclan.ca']
 
-SECURE_SSL_REDIRECT = False
+CSRF_TRUSTED_ORIGINS = ["https://the6ixclan.ca"]
 
 # Application definition
 
