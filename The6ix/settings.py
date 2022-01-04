@@ -29,7 +29,7 @@ SECRET_KEY = secret_dict['SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['localhost', '.the6ixclan.ca']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.the6ixclan.ca']
 
 CSRF_TRUSTED_ORIGINS = ["https://the6ixclan.ca"]
 
@@ -42,7 +42,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'crispy_forms',
     'The6ixDjango.apps.The6IxdjangoConfig',
+    'users.apps.UsersConfig',
 ]
 
 MIDDLEWARE = [
@@ -80,14 +82,22 @@ WSGI_APPLICATION = 'The6ix.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
 
+POSTGRES_PORT = secret_dict['POSTGRES_PORT']
+POSTGRES_HOST = secret_dict['POSTGRES_HOST']
+
+if DEBUG==True:
+    POSTGRES_PORT = secret_dict['POSTGRES_PORT_DEV']
+    POSTGRES_HOST = secret_dict['POSTGRES_HOST_DEV']
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': secret_dict['POSTGRES_DB'],
         'USER': secret_dict['POSTGRES_USER'],
         'PASSWORD': secret_dict['POSTGRES_PASSWORD'],
-        'HOST': secret_dict['POSTGRES_HOST'],
-        'PORT': secret_dict['POSTGRES_PORT'],
+        'HOST': POSTGRES_HOST,
+        'PORT': POSTGRES_PORT,
     }
 }
 
@@ -131,6 +141,8 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
+
+CRISPY_TEMPLATE_PACK = 'bootstrap4'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
