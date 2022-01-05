@@ -87,6 +87,12 @@
   color: #465765;
 }
 
+.navigation-clean-button .actions .clashstats {
+  margin-right: 1rem;
+  text-decoration: none;
+  color: #465765;
+}
+
 .navigation-clean-button .navbar-text .action-button, .navigation-clean-button .navbar-text .action-button:active, .navigation-clean-button .navbar-text .action-button:hover {
   background: #56c6c6;
   border-radius: 20px;

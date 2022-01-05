@@ -18,9 +18,11 @@ import socket
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ipadd = socket.gethostbyname(socket.gethostname())
+STAT_DATE = 'January 5, 2022'
+
+IPADD = socket.gethostbyname(socket.gethostname())
 ec2 = True
-if ipadd[0:3] in ('192', '127'):
+if IPADD[0:3] in ('192', '127'):
     ec2 = False
 print(f'EC2 environment: {ec2}')
 
@@ -153,6 +155,9 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
+
+LOGIN_REDIRECT_URL = 'The6ixDjango-home'
+LOGIN_URL = 'login'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field

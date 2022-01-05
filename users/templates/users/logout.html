@@ -1,0 +1,12 @@
+{% extends "The6ixDjango/base_enh.html" %}
+{% block content %}
+    <div class="mt-2">
+        <h2>You are now logged out.</h2>
+    </div>
+    <div class="border-top pt-2">
+        <small class="text-muted">
+            <a href="{% url 'login' %}">Log In Again</a>
+        </small>
+    </div>
+    </div>
+{% endblock content %}
