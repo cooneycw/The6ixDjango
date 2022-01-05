@@ -1,11 +1,11 @@
-{% extends "The6ixDjango/base.html" %}
+{% extends "The6ixDjango/base_enh.html" %}
 {% load crispy_forms_tags %}
 {% block content %}
     <div class="content-section">
     <form method="POST">
         {% csrf_token %}
         <fieldset class="form-group">
-            <legend class="border-bottom mb-4">Register to access The6ixClan</legend>
+            <legend class="border-bottom mb-4">Register to access The6ixClan website:</legend>
             {{ form|crispy }}
         </fieldset>
         <div class="form-group mt-2 mb-2">
