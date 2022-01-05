@@ -24,7 +24,7 @@ IPADD = socket.gethostbyname(socket.gethostname())
 ec2 = True
 if IPADD[0:3] in ('192', '127'):
     ec2 = False
-print(f'EC2 environment: {ec2}')
+print(f'EC2 environment: {ec2} ip address:{IPADD}')
 
 secret = get_secrets()
 secret_dict = ast.literal_eval(secret)
