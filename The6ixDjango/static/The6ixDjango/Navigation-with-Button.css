@@ -118,3 +118,24 @@
   border-radius: 20px;
 }
 
+#cn_tower {
+  display: block;
+  text-align: center;
+  /*align: center;*/
+}
+
+#cn_tower {
+  overflow: hidden;
+}
+
+#clan_image {
+  display: block;
+  overflow: hidden;
+}
+
+#picture_row {
+  /*display: inline-block;*/
+  overflow: hidden;
+}
+
+
