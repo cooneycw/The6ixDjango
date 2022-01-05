@@ -19,9 +19,8 @@ import socket
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 ipadd = socket.gethostbyname(socket.gethostname())
-if ipadd == '172.31.12.86':
-    ec2 = True
-else:
+ec2 = True
+if ipadd[0:3] in ('192', '127'):
     ec2 = False
 print(f'EC2 environment: {ec2}')
 
