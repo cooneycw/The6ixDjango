@@ -22,7 +22,7 @@ STAT_DATE = 'January 5, 2022'
 
 IPADD = socket.gethostbyname(socket.gethostname())
 ec2 = True
-if IPADD[0:3] in ('192', '127'):
+if IPADD in ('192.168.4.244', '127.0.0.1'):
     ec2 = False
 print(f'EC2 environment: {ec2} ip address:{IPADD}')
 
