@@ -27,7 +27,7 @@ secret_dict = ast.literal_eval(secret)
 SECRET_KEY = secret_dict['SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.the6ixclan.ca']
 
