@@ -13,9 +13,17 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 from pathlib import Path
 from .secrets import get_secrets
 import ast
+import socket
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+ipadd = socket.gethostbyname(socket.gethostname())
+if ipadd == '172.31.12.86':
+    ec2 = True
+else:
+    ec2 = False
+print(f'EC2 environment: {ec2}')
 
 secret = get_secrets()
 secret_dict = ast.literal_eval(secret)
@@ -27,7 +35,10 @@ secret_dict = ast.literal_eval(secret)
 SECRET_KEY = secret_dict['SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+if ec2 == True:
+    DEBUG = False
+else:
+    DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.the6ixclan.ca']
 
