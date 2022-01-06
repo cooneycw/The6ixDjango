@@ -4,6 +4,7 @@ from .forms import CountryForm
 from The6ix.settings import STAT_DATE
 
 
+
 @login_required()
 def clashstats(request):
     return render(request, 'clashstats/menu.html', {'title': 'The6ixClan: Statistics', 'stat_date': STAT_DATE})

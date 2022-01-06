@@ -16,10 +16,17 @@ class UserUpdateForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'email']
+        fields = ['username', 'email', 'first_name', 'last_name']
 
 
 class ProfileUpdateForm(forms.ModelForm):
+
     class Meta:
         model = Profile
-        fields = []
+        fields = ['clash_id', 'clan_id']
+
+        def clean_clash_id(self):
+            return self.cleaned_data['clash_id'].upper()
+
+        def clean_clan_id(self):
+            return self.cleaned_data['clan_id'].upper()
