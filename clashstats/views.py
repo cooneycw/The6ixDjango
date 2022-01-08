@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponseNotFound
 from django.contrib.auth.decorators import login_required
-from .forms import cardStatsForm, segmentForm, segmentsForm
+from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm
 from The6ix.settings import STAT_DATE, STAT_FILES
 import pandas as pd
 import numpy as np
@@ -335,3 +335,119 @@ def segments(request):
                 'show_df': show_df
             }
     return render(request, 'clashstats/segments.html', context)
+
+
+@login_required()
+def cardsegt(request):
+
+    title = 'The6ixClan: Card Statistics'
+    show_df = False
+    f_name = STAT_FILES / 'csv/segment_summary_quart.csv'
+    # pathname = os.path.abspath(os.path.dirname(__file__))
+    df = pd.read_csv(f_name, index_col=None)
+
+    max_cards = len(df.columns) - (8 + 1)  # stats + home_elixr
+    card_name = []
+    i = 0
+    while i < max_cards:
+        card_name.append(df.columns[8 + i])
+        i += 1
+    card_id = range(len(card_name))
+    card_list = list(zip(card_id, card_name))
+
+    sort_name = []
+    sort_name.append("Segment No. Order")
+    sort_name.append("Highest Use Rate")
+
+    sort_id = range(len(sort_name))
+    sort_list = list(zip(sort_id, sort_name))
+
+    pl_name = STAT_FILES / 'pickles/lbounds'
+    pu_name = STAT_FILES / 'pickles/ubounds'
+    lbounds = pickle.load(open(pl_name, "rb"))
+    ubounds = pickle.load(open(pu_name, "rb"))
+
+    rank_name = []
+    i = 0
+    max_i = len(ubounds)
+    while i < max_i:
+        rank_name.append(f'Sort by use rate for trophy range: {str(int(lbounds[i])).rjust(4," ")}-{str(int(ubounds[i])).rjust(4," ")}')
+        i += 1
+
+    rank_id = range(len(rank_name))
+    rank_list = list(zip(rank_id, rank_name))
+
+
+    if request.method == 'POST':
+        form = cardsegtForm(data=request.POST, cardList=card_list, sortList=sort_list, rankList=rank_list)
+        if request.POST.get('Return') == 'Return to Menu':
+            return redirect('clashstats-menu')
+        elif form.is_valid():
+            show_df = True
+
+            card_sel = int(form.cleaned_data.get('cards'))
+            sort_order = int(form.cleaned_data.get('sorts'))
+            rank_order = int(form.cleaned_data.get('ranks'))
+
+            card_seln = card_name[card_sel]
+            seg_list = df.seg_name.unique()
+
+            usage = pd.DataFrame(np.sort(seg_list), columns=['seg_name']).reset_index()
+
+            col01 = df[df.quartile == 1].iloc[:, [1, df.columns.get_loc(card_seln)]]
+            col02 = df[df.quartile == 2].iloc[:, [1, df.columns.get_loc(card_seln)]]
+            col03 = df[df.quartile == 3].iloc[:, [1, df.columns.get_loc(card_seln)]]
+            col04 = df[df.quartile == 4].iloc[:, [1, df.columns.get_loc(card_seln)]]
+
+            usage['quart_01'] = col01.set_index('seg_name').reindex(usage['seg_name']).fillna(0).reset_index().iloc[:, 1]
+            usage['quart_02'] = col02.set_index('seg_name').reindex(usage['seg_name']).fillna(0).reset_index().iloc[:, 1]
+            usage['quart_03'] = col03.set_index('seg_name').reindex(usage['seg_name']).fillna(0).reset_index().iloc[:, 1]
+            usage['quart_04'] = col04.set_index('seg_name').reindex(usage['seg_name']).fillna(0).reset_index().iloc[:, 1]
+
+            if sort_order == 0:
+                usage.sort_values(['seg_name'], ascending=[1], inplace=True)
+            elif rank_order == 0:
+                usage.sort_values(['quart_01'], ascending=[0], inplace=True)
+            elif rank_order == 1:
+                usage.sort_values(['quart_02'], ascending=[0], inplace=True)
+            elif rank_order == 2:
+                usage.sort_values(['quart_03'], ascending=[0], inplace=True)
+            elif rank_order == 3:
+                usage.sort_values(['quart_04'], ascending=[0], inplace=True)
+
+            display_df = pd.DataFrame(usage.seg_name, columns=['seg_name'])
+            display_df['Quartile 1'] = pd.Series(["{0:.1f}%".format(val * 100)
+                                                  for val in usage['quart_01']], index=usage.index)
+            display_df['Quartile 2'] = pd.Series(["{0:.1f}%".format(val * 100)
+                                                  for val in usage['quart_02']], index=usage.index)
+            display_df['Quartile 3'] = pd.Series(["{0:.1f}%".format(val * 100)
+                                                  for val in usage['quart_03']], index=usage.index)
+            display_df['Quartile 4'] = pd.Series(["{0:.1f}%".format(val * 100)
+                                                  for val in usage['quart_04']], index=usage.index)
+
+            table_data = display_df.to_html(index=False, classes='table table-striped table-hover',
+                                                header="true", justify="center")
+            context = {
+                'title': title,
+                'form': form,
+                'show_df': show_df,
+                'table_data': table_data,
+            }
+
+            return render(request, 'clashstats/cardsegt.html', context)
+
+        context = {
+             'title': title,
+             'form': form,
+             'show_df': show_df
+            }
+
+        return render(request, 'clashstats/cardsegt.html', context)
+
+    form = cardsegtForm(cardList=card_list, sortList=sort_list, rankList=rank_list)
+    context = {
+                'title': title,
+                'form': form,
+                'show_df': show_df
+            }
+    return render(request, 'clashstats/cardsegt.html', context)

@@ -35,3 +35,18 @@ class segmentsForm(forms.Form):
     confs = forms.ChoiceField(choices=(), initial=0, required=True)
     sorts = forms.ChoiceField(choices=(), initial=0, required=True)
 
+
+class cardsegtForm(forms.Form):
+    def __init__(self, cardList, sortList, rankList, *args, **kwargs):
+        super(cardsegtForm, self).__init__(*args, **kwargs)
+        self.fields['cards'].choices = cardList
+        self.fields['cards'].label = "Choose a card:"
+        self.fields['sorts'].choices = sortList
+        self.fields['sorts'].label = "Order results by:"
+        self.fields['ranks'].choices = rankList
+        self.fields['ranks'].label = "Rank within quartile:"
+
+    cards = forms.ChoiceField(choices=(), initial=0, required=True)
+    sorts = forms.ChoiceField(choices=(), initial=0, required=True)
+    ranks = forms.ChoiceField(choices=(), initial=0, required=True)
+

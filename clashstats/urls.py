@@ -5,5 +5,6 @@ urlpatterns = [
     path('clashstats/menu/', views.clashstats, name='clashstats-menu'),
     path('clashstats/cards/', views.cards, name='clashstats-cards'),
     path('clashstats/segments/', views.segments, name='clashstats-segments'),
-    path('clashstats/segment/<int:pk>/', views.segment, name='clashstats-segment')
-]
+    path('clashstats/segment/<int:pk>/', views.segment, name='clashstats-segment'),
+    path('clashstats/cardsegt/', views.cardsegt, name='clashstats-cardsegt'),
+    ]
