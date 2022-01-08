@@ -13,9 +13,25 @@ class cardStatsForm(forms.Form):
     sorts = forms.ChoiceField(choices=(), initial=0, required=True)
 
 
-    #class CardForm(FlaskForm):
-    #    cardStats = TextAreaField('Card Statistics')
-    #    filters = MultiCheckboxField('Select Options', coerce=int)
-    #    quartOrder = SelectField(label='Select Quartile for Sort Order', coerce=int)
-    #    sortOrder = SelectField(label='Choose a Sort Order', coerce=int)
-    #    submit_filters = SubmitField('Update Card Statistics with Selections')
+class segmentForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(segmentForm, self).__init__(*args, **kwargs)
+
+
+class segmentsForm(forms.Form):
+    def __init__(self, segList, filterList, confList, sortList, *args, **kwargs):
+        super(segmentsForm, self).__init__(*args, **kwargs)
+        self.fields['sgmts'].choices = segList
+        self.fields['sgmts'].label = "Select segment for a deep-dive regarding segment composition:"
+        self.fields['filts'].choices = filterList
+        self.fields['filts'].label = "Select player rankings for inclusion in statistics:"
+        self.fields['confs'].choices = confList
+        self.fields['confs'].label = "Choose a confidence interval:"
+        self.fields['sorts'].choices = sortList
+        self.fields['sorts'].label = "Choose a sort order:"
+
+    sgmts = forms.ChoiceField(choices=(), initial=0, required=True)
+    filts = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, choices=(), initial=0, required=True)
+    confs = forms.ChoiceField(choices=(), initial=0, required=True)
+    sorts = forms.ChoiceField(choices=(), initial=0, required=True)
+
