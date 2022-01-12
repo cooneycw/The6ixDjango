@@ -1,11 +1,13 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponseNotFound
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm
+from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm
+from .scoring import get_segment, get_cards
 from The6ix.settings import STAT_DATE, STAT_FILES
 import pandas as pd
 import numpy as np
-import pickle5 as pickle
+import pickle
 import math
 
 
@@ -17,6 +19,7 @@ def clashstats(request):
 @login_required()
 def cards(request):
 
+    title = 'The6ixClan: Card Statistics'
     show_df = False
     f_name = STAT_FILES / 'csv/segment_summary_quart.csv'
     # pathname = os.path.abspath(os.path.dirname(__file__))
@@ -98,7 +101,7 @@ def cards(request):
                                         justify="center")
 
             context = {
-                'title': 'The6ixClan: Card Statistics',
+                'title': title,
                 'form': form,
                 'show_df': show_df,
                 'table_data': table_data
@@ -107,7 +110,7 @@ def cards(request):
 
         else:
             context = {
-                'title': 'The6ixClan: Card Statistics',
+                'title': title,
                 'form': form,
                 'show_df': show_df
             }
@@ -115,7 +118,7 @@ def cards(request):
 
     form = cardStatsForm(filterList=filter_list, sortList=sort_list)
     context = {
-                'title': 'The6ixClan: Card Statistics',
+                'title': title,
                 'form': form,
                 'show_df': show_df
     }
@@ -125,6 +128,7 @@ def cards(request):
 @login_required()
 def segment(request, pk):
 
+    title = 'The6ixClan: Segment Close-Up'
     show_df = False
     f_name = STAT_FILES / 'csv/segment_summary.csv'
     # pathname = os.path.abspath(os.path.dirname(__file__))
@@ -169,7 +173,7 @@ def segment(request, pk):
                                 justify="center")
 
     context = {
-        'title': 'The6ixClan: Segment Close-Up',
+        'title': title,
         'segment_name': segment_display,
         'homogeneity': homogeneity,
         'form': form,
@@ -451,3 +455,161 @@ def cardsegt(request):
                 'show_df': show_df
             }
     return render(request, 'clashstats/cardsegt.html', context)
+
+@login_required()
+def findsegt(request):
+    title = 'The6ixClan: Find a Segment'
+    show_df = False
+
+    f_name = STAT_FILES / 'csv/segment_summary.csv'
+    # pathname = os.path.abspath(os.path.dirname(__file__))
+    df = pd.read_csv(f_name, index_col=None)
+    deck_df = df.drop(df.columns[range(0, 7)], axis=1)
+    deck_df.drop(deck_df.index, inplace=True)
+    deck_df = deck_df.append(pd.Series(0, index=deck_df.columns), ignore_index=True)
+
+    max_cards = len(df.columns) - (7 + 1)  # stats + home_elixr
+    card_name = []
+    i = 0
+    while i < max_cards:
+        card_name.append(df.columns[7 + i])
+        i += 1
+    card_id = range(len(card_name))
+    card_list = list(zip(card_id, card_name))
+
+    if request.method == 'POST':
+        form = findSegtForm(data=request.POST, cardList=card_list)
+        if request.POST.get('Return') == 'Return to Menu':
+            return redirect('clashstats-menu')
+        elif request.POST.get('Clear') == 'Clear Entries' and form.is_valid():
+            form = findSegtForm(data={}, cardList=card_list)
+            context = {
+                'title': title,
+                'form': form,
+                'show_df': show_df,
+            }
+            return render(request, 'clashstats/findsegt.html', context)
+        elif form.is_valid():
+            show_df = True
+            cards = [int(x) for x in form.cleaned_data.get('cards')]
+            if len(cards) != 8:
+                show_df = False
+                if len(cards) < 8:
+                    if len(cards) == 1:
+                        messages.warning(request, f'Must select 8 cards to derive segment.  Only {len(cards)} card is currently selected.')
+                    else:
+                        messages.warning(request, f'Must select 8 cards to derive segment.  Only {len(cards)} cards are currently selected.')
+                else:
+                    messages.warning(request,
+                                     f'Must select only 8 cards to derive segment; {len(cards)} cards are currently selected.')
+                context = {
+                    'title': title,
+                    'form': form,
+                    'show_df': show_df,
+                }
+                return render(request, 'clashstats/findsegt.html', context)
+
+            for card in cards:
+                deck_df.loc[0, card_list[card][1]] = 1
+
+            deck_df = get_segment(deck_df)
+            segmentID = int(deck_df['home_seg'])
+            request.session['deck_df'] = deck_df.to_json()
+            return redirect('clashstats-segtrslt', segmentID)
+
+        else:
+            context = {
+                'title': title,
+                'form': form,
+                'show_df': show_df
+            }
+            return render(request, 'clashstats/findsegt.html', context)
+
+    form = findSegtForm(cardList=card_list)
+    context = {
+                'title': title,
+                'form': form,
+                'show_df': show_df
+    }
+    return render(request, 'clashstats/findsegt.html', context)
+
+
+@login_required()
+def segtrslt(request, pk):
+
+    title = 'The6ixClan: Segment Identification'
+    show_df = True
+    form = segmentFoundForm()
+
+    deck_df = pd.read_json(request.session['deck_df'], dtype=False)
+    elixr = deck_df.home_elix.iloc[0]
+
+    f_name = STAT_FILES / 'csv/segment_summary.csv'
+    # pathname = os.path.abspath(os.path.dirname(__file__))
+
+    df = pd.read_csv(f_name, index_col=None)
+
+    segment_list = df['home_seg'].unique()
+    segment_list = np.sort(segment_list)
+
+    if pk not in segment_list:
+        html = '<a href = "http://the6ixclan.ca"> Return to The6ixclan.ca </a>'
+        return HttpResponseNotFound(f'<h2>Segment {pk} does not exist.<h2><br>' + html)
+    else:
+        show_df = True
+
+    if request.method == 'POST':
+        form = segmentFoundForm(data=request.POST)
+        if request.POST.get('Return') == "Return to Find Your Deck's Segment":
+            return redirect('clashstats-findsegt')
+
+
+    segment_id = pk - 1
+
+    segment_name = df['seg_name'].iloc[segment_id]
+    segment_display = segment_name[0:8] + segment_name[17:100]
+    homogeneity = segment_name[9:15]
+
+    max_cards = len(df.columns)-(7+1) # stats + home_elixr
+    alt_card_names = []
+    user_card_names = []
+    alt_card_stats = []
+    user_card_stats = []
+    i = 0
+    while i < max_cards:
+        if int(deck_df.iloc[0, i]) == 1:
+            user_card_names.append(df.columns[7+i])
+            user_card_stats.append(df.iloc[segment_id, (7+i)])
+        else:
+            alt_card_names.append(df.columns[7+i])
+            alt_card_stats.append(df.iloc[segment_id, (7+i)])
+        i += 1
+
+    user_df = pd.DataFrame(user_card_names, columns=['card'])
+    user_df['use'] = user_card_stats
+    user_df = user_df.sort_values('use', ascending=False)
+
+    user_display_df = user_df.loc[:, ['card']] # seg_name
+    user_display_df['use_rate'] = pd.Series(["{0:.1f}%".format(val * 100) for val in user_df['use']], index=user_df.index)
+
+    alt_df = pd.DataFrame(alt_card_names, columns=['card'])
+    alt_df['use'] = alt_card_stats
+    alt_df = alt_df.sort_values('use', ascending=False)
+
+    alt_display_df = alt_df.loc[:, ['card']] # seg_name
+    alt_display_df['use_rate'] = pd.Series(["{0:.1f}%".format(val * 100) for val in alt_df['use']], index=alt_df.index)
+
+    table_data = user_display_df.to_html(index=False, classes='table table-striped table-hover',
+                                        header="true", justify="center")
+    alt_data = alt_display_df.to_html(index=False, classes='table table-striped table-hover',
+                                         header="true", justify="center")
+    context = {
+                'title': title,
+                'form': form,
+                'segment_name': segment_display,
+                'homogeneity': homogeneity,
+                'show_df': show_df,
+                'table_data': table_data,
+                'alt_data': alt_data,
+            }
+    return render(request, 'clashstats/segtrslt.html', context)

@@ -6,3 +6,7 @@
 # pickles
 # - lbounds
 # - hbounds
+# - cards (from location/data/cards)
+# - segment_cols
+# - kmeans
+# - Hclustering

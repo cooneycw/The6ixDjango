@@ -50,3 +50,18 @@ class cardsegtForm(forms.Form):
     sorts = forms.ChoiceField(choices=(), initial=0, required=True)
     ranks = forms.ChoiceField(choices=(), initial=0, required=True)
 
+
+class findSegtForm(forms.Form):
+    def __init__(self, cardList, *args, **kwargs):
+        super(findSegtForm, self).__init__(*args, **kwargs)
+        self.fields['cards'].choices = cardList
+        self.fields['cards'].label = "Select 8 cards to identify your deck's segment:"
+
+    cards = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, choices=(), initial=None, required=True)
+
+
+class segmentFoundForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(segmentFoundForm, self).__init__(*args, **kwargs)
+
+

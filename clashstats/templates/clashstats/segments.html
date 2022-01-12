@@ -8,10 +8,11 @@
                         <h2 style="box-shadow: 0px 0px;">Segment Statistics</h2>
                     <hr/>
                     <div class="content-section">
-                        <div class="form-check mt-2 mb-2" style="background: linear-gradient(51deg, rgb(255,255,255) 0%, rgb(255,255,255) 2%, rgb(245, 236, 89) 90%)">
+                        <div class="form-check mt-2 mb-2" style="background: linear-gradient(231deg, rgb(255,255,255) 0%, rgb(255,255,255) 2%, rgb(245, 236, 89) 90%)">
                             <form action="." method="POST">
                             {% csrf_token %}
                                 <div class="form-group mt-2 mb-2" style="width: 50%;">
+                                    <br>
                                     {{ form.sgmts | as_crispy_field }}
                                 </div>
                                 <div class="span-2 mt-2 mb-2" style="width: 25%">
@@ -30,7 +31,9 @@
                             <div class="span-2 mt-2 mb-2" style="width: 25%">
                                 <input class="btn btn-light action-button" type="Submit" name="Submit" value="Submit" style="background: #e7bb3f;"></input>
                                 <input class="btn btn-light action-button" type="Submit" name="Return" value="Return to Menu" style="background: rgb(255, 93, 5);"></input>
+
                             </div>
+                                 <br>
                             </form>
                         </div>
                         <hr/>

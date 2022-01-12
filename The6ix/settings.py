@@ -15,6 +15,7 @@ from .secrets import get_secrets
 import ast
 import socket
 import os
+from joblib import load
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -166,3 +167,10 @@ LOGIN_URL = 'login'
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+kmeans_name = STAT_FILES / 'pickles/kmeans.pickle'
+hclust_name = STAT_FILES / 'pickles/hclust.pickle'
+
+
+CLUSTERING = load(kmeans_name)
+HCLUSTERING = load(hclust_name)
