@@ -761,7 +761,7 @@ def membrept(request):
             curr_page = max(1, (curr_page - 1))
             request.session['curr_page'] = curr_page
 
-        df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
+    #    df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
 
     form = memberReptForm()
     context = {

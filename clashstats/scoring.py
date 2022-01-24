@@ -80,5 +80,5 @@ def get_clan(clan_tag):
     return err_code, member_list
 
 
-def autopull():
+def auto_pull():
     return
