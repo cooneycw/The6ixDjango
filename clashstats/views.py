@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponseNotFound
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm
-from .scoring import get_segment, get_cards
+from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm
+from .scoring import get_segment, get_cards, get_clan, auto_pull
 from The6ix.settings import STAT_DATE, STAT_FILES
 import pandas as pd
 import numpy as np
@@ -613,3 +613,162 @@ def segtrslt(request, pk):
                 'alt_data': alt_data,
             }
     return render(request, 'clashstats/segtrslt.html', context)
+
+
+@login_required()
+def clanrept(request):
+    title = 'The6ixClan: Clan Report Menu'
+    form = clanReptForm()
+
+    if request.method == 'POST':
+        form = clanReptForm(data=request.POST)
+        if request.POST.get('Return') == 'Return to Menu':
+            return redirect('clashstats-menu')
+        if request.POST.get("Pull Recent Stats for 'The6ix' Clan") == "Pull Recent Stats for 'The6ix' Clan":
+            request.session['clan'] = '#YP8GPGYQ'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'Born On Ice' Clan") == "Pull Recent Stats for 'Born On Ice' Clan":
+            request.session['clan'] = '#VGV0RP8'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'Bacon Blitz' Clan") == "Pull Recent Stats for 'Bacon Blitz' Clan":
+            request.session['clan'] = '#2Y2282J'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'Avatar' Clan") == "Pull Recent Stats for 'Avatar' Clan":
+            request.session['clan'] = '#PY8VPYC0'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'Pivot Family' Clan") == "Pull Recent Stats for 'Pivot Family' Clan":
+            request.session['clan'] = '#2C0LVR9P'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'WARTube' Clan") == "Pull Recent Stats for 'WARTube' Clan":
+            request.session['clan'] = '#L0LC9R8R'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'Skeleton Scoot' Clan") == "Pull Recent Stats for 'Skeleton Scoot' Clan":
+            request.session['clan'] = '#YUGYYJ0V'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'CLANwithSHANE' Clan") == "Pull Recent Stats for 'CLANwithSHANE' Clan":
+            request.session['clan'] = '#CGJ9GGU'
+            return redirect('clashstats-membslct')
+        if request.POST.get("Pull Recent Stats for 'PandaScheme' Clan") == "Pull Recent Stats for 'PandaScheme' Clan":
+            request.session['clan'] = '#YU2RQG9'
+            return redirect('clashstats-membslct')
+
+    context = {
+        'title': title,
+        'form': form,
+    }
+    return render(request, 'clashstats/clanrept.html', context)
+
+
+@login_required()
+def membslct(request):
+    title = 'The6ixClan: Clan Member Select'
+    clan = request.session['clan']
+    err_code, member_df = get_clan(clan)
+    if err_code == 99:
+        messages.warning(request, f'Clash Royale API is down.  Please notify Remember_215 in the clan.')
+        member_list = []
+    else:
+        member_names = []
+        member_tags = []
+        member_id = []
+
+        max_members = len(member_df)
+        i = 0
+        while i < max_members:
+            member_id.append(i)
+            member_tags.append(member_df.tag.iloc[i])
+            member_names.append(member_df.name.iloc[i])
+            i += 1
+
+        df = pd.DataFrame(member_id, columns=['member_id'])
+        df['member_names'] = member_names
+
+        member_list = list(zip(df.member_id.to_list(), df.member_names.to_list()))
+
+    if request.method == 'POST':
+        form = memberSlctForm(data=request.POST, memberList=member_list)
+        if request.POST.get('Return to Clan Select') == 'Return to Clan Select':
+            return redirect('clashstats-clanrept')
+        elif request.POST.get('Return') == 'Return to Menu':
+            return redirect('clashstats-menu')
+        elif request.POST.get('Clear Form') == 'Clear Form':
+            form = memberSlctForm(data={}, memberList=member_list)
+            context = {
+                'title': title,
+                'form': form
+            }
+            return render(request, 'clashstats/membslct.html.html', context)
+        elif request.POST.get("Pull Statistics for All Clan Members") == "Pull Statistics for All Clan Members":
+            members = [int(x) for x in range(0, len(member_list))]
+            request.session['member_sels'] = members
+            request.session['member_list'] = member_list
+            request.session['member_df'] = member_df.to_json()
+            request.session['clan'] = clan
+            request.session['curr_page'] = 1
+            return redirect('clashstats-membrept')
+        elif request.POST.get("Pull Statistics for Selections Below") == "Pull Statistics for Selections Below" and form.is_valid():
+            members = [int(x) for x in form.cleaned_data.get('members')]
+            request.session['member_sels'] = members
+            request.session['member_list'] = member_list
+            request.session['member_df'] = member_df.to_json()
+            request.session['clan'] = clan
+            request.session['curr_page'] = 1
+            return redirect('clashstats-membrept')
+
+        context = {
+            'title': title,
+            'form': form,
+        }
+        return render(request, 'clashstats/membslct.html', context)
+    form = memberSlctForm(memberList=member_list)
+    context = {
+        'title': title,
+        'form' : form,
+    }
+    return render(request, 'clashstats/membslct.html', context)
+
+
+@login_required()
+def membrept(request):
+    title = 'The6ixClan: Member Report'
+    try:
+        clan = request.session['clan']
+        member_list = request.session['member_list']
+        member_sels = request.session['member_sels']
+        member_df = pd.read_json(request.session['member_df'], dtype=False)
+        curr_page = request.session['curr_page']
+        if len(member_sels) == 1:
+            dyn_title = 'Member Report'
+        else:
+            dyn_title = 'Member Reports'
+    except:
+        clan = []
+        member_list = []
+        member_sels = []
+        curr_page = 1
+        messages.warning(request, f'Error has occurred.')
+        dyn_title = 'The6ixClan: Member Report'
+    if request.method == 'POST':
+        form = memberReptForm(data=request.POST)
+        if request.POST.get('Return to Clan Select') == 'Return to Clan Select':
+            redirect('clashstats-clanrept')
+        elif request.POST.get('Return to Menu') == 'Return to Menu':
+            redirect('clashstats-menu')
+        elif request.POST.get('Next Member') == 'Next Member':
+            curr_page = min(len(member_sels), (curr_page + 1))
+            request.session['curr_page'] = curr_page
+        elif request.POST.get('Previous Member') == 'Previous Member':
+            curr_page = max(1, (curr_page - 1))
+            request.session['curr_page'] = curr_page
+
+        df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
+
+    form = memberReptForm()
+    context = {
+        'title': title,
+        'dyn_title': dyn_title,
+        'curr_page': curr_page,
+        'max_page' : len(member_sels),
+        'form' : form,
+    }
+    return render(request, 'clashstats/membrept.html', context)

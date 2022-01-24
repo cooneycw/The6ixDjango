@@ -1,6 +1,7 @@
-from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING
+from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, CLASH_API
 import pickle
-from joblib import dump, load
+import urllib.request
+import json
 import pandas as pd
 from sklearn.preprocessing import normalize
 
@@ -50,3 +51,34 @@ def get_cards():
     cards = pickle.load(open(cards_name, "rb"))
 
     return cards
+
+
+def get_clan(clan_tag):
+    err_code = 0
+    my_key = CLASH_API
+
+    base_url = "https://api.clashroyale.com/v1"
+    n_clan_tag = clan_tag.replace('#', '%23')
+    endpoint = f'/clans/{n_clan_tag}/members'
+
+    request = urllib.request.Request(
+        base_url + endpoint,
+        None,
+        {
+            "Authorization": "Bearer %s" % my_key
+        }
+    )
+
+    try:
+        response = urllib.request.urlopen(request).read().decode("utf-8")
+        data = json.loads(response)
+        member_list = pd.json_normalize(data['items'])
+    except:
+        err_code = 99
+        member_list = []
+
+    return err_code, member_list
+
+
+def autopull():
+    return

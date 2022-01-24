@@ -9,4 +9,7 @@ urlpatterns = [
     path('clashstats/cardsegt/', views.cardsegt, name='clashstats-cardsegt'),
     path('clashstats/findsegt/', views.findsegt, name='clashstats-findsegt'),
     path('clashstats/segtrslt/<int:pk>/', views.segtrslt, name='clashstats-segtrslt'),
+    path('clashstats/clanrept/', views.clanrept, name='clashstats-clanrept'),
+    path('clashstats/membslct/', views.membslct, name='clashstats-membslct'),
+    path('clashstats/membrept/', views.membrept, name='clashstats-membrept'),
     ]

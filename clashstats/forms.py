@@ -65,3 +65,19 @@ class segmentFoundForm(forms.Form):
         super(segmentFoundForm, self).__init__(*args, **kwargs)
 
 
+class clanReptForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(clanReptForm, self).__init__(*args, **kwargs)
+
+
+class memberSlctForm(forms.Form):
+    def __init__(self, memberList, *args, **kwargs):
+        super(memberSlctForm, self).__init__(*args, **kwargs)
+        self.fields['members'].choices = memberList
+        self.fields['members'].label = "Select players to compile statistical reports:"
+    members = forms.MultipleChoiceField(widget=forms.CheckboxSelectMultiple, choices=(), initial=None, required=True)
+
+
+class memberReptForm(forms.Form):
+    def __init__(self,  *args, **kwargs):
+        super(memberReptForm, self).__init__(*args, **kwargs)

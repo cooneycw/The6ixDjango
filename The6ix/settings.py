@@ -99,10 +99,12 @@ WSGI_APPLICATION = 'The6ix.wsgi.application'
 
 POSTGRES_PORT = secret_dict['POSTGRES_PORT']
 POSTGRES_HOST = secret_dict['POSTGRES_HOST']
+CLASH_API = secret_dict['API']
 
 if DEBUG==True:
     POSTGRES_PORT = secret_dict['POSTGRES_PORT_DEV']
     POSTGRES_HOST = secret_dict['POSTGRES_HOST_DEV']
+    CLASH_API = secret_dict['API_DEV']
 
 
 DATABASES = {
