@@ -514,7 +514,7 @@ def findsegt(request):
 
             deck_df = get_segment(deck_df)
             segmentID = int(deck_df['home_seg'])
-            request.session['deck_df'] = deck_df.to_json()
+            request.session['find_seg_deck_df'] = deck_df.to_json()
             return redirect('clashstats-segtrslt', segmentID)
 
         else:
@@ -541,8 +541,8 @@ def segtrslt(request, pk):
     show_df = True
     form = segmentFoundForm()
 
-    deck_df = pd.read_json(request.session['deck_df'], dtype=False)
-    elixr = deck_df.home_elix.iloc[0]
+    deck_df = pd.read_json(request.session['find_seg_deck_df'], dtype=False)
+    elixr = deck_df.home_elixr.iloc[0]
 
     f_name = STAT_FILES / 'csv/segment_summary.csv'
     # pathname = os.path.abspath(os.path.dirname(__file__))

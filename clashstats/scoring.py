@@ -1,4 +1,9 @@
-from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, CLASH_API
+from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, CLASH_API, LBOUNDS, UBOUNDS
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
+import requests
+import datetime
+import time
 import pickle
 import urllib.request
 import json
@@ -38,23 +43,17 @@ def get_segment(deck_in):
 
 
 def get_elixr(deck_in):
-
     cards_df = get_cards()
     cards_df.sort_values(by=['card'], inplace=True)
     cards_df.set_index('card')
-
-    elixr = (deck_in[cards_df.loc[:,'card']].T.mul(cards_df.loc[:,'elixr'].tolist(), axis=0)).T
-
-    deck_in.loc[:,'home_elix'] = (elixr.sum(axis=1))/8
-
+    elixr = (deck_in[cards_df.loc[:, 'card']].T.mul(cards_df.loc[:, 'elixr'].tolist(), axis=0)).T
+    deck_in.loc[:, 'home_elixr'] = (elixr.sum(axis=1))/8
     return deck_in
 
 
 def get_cards():
-
     cards_name = STAT_FILES / 'pickles/cards'
     cards = pickle.load(open(cards_name, "rb"))
-
     return cards
 
 
@@ -86,17 +85,18 @@ def get_clan(clan_tag):
 
 
 def auto_pull(member):
-    success, df = get_games(member.iloc[:, 0:5])
+    success, df = get_async_games(member.iloc[:, 0:5])
+
     if success == 0:
         df_out = []
         lbounds = []
         return df_out, lbounds, success
-    clan_df = game_cleanup_clan(df)
-    clan_df_v2 = append_trophs(clan_df, home)
-    team = clan_df_v2.tag.unique()
+    clan_df_v2 = game_cleanup_asynch_clan(df)
+
+    team = clan_df_v2.home_tag.unique()
     i = 0
     for person in team:
-        temp_df = clan_df_v2.loc[clan_df['tag'] == person]
+        temp_df = clan_df_v2.loc[(member['tag'] == person).index]
         temp_df_v2 = get_segment_away(get_segment(temp_df))
 
         results = get_probs_seg_clan(temp_df_v2)
@@ -107,211 +107,447 @@ def auto_pull(member):
             df_out = df_out.append(results, ignore_index=True)
         i += 1
 
-    pathname = os.path.abspath(os.path.dirname(__file__))
-    with open(pathname + "/pickles/lbounds", 'rb') as handle:
-        lbounds = pickle.load(handle)
+    lbounds = LBOUNDS
 
     return df_out, lbounds, success
 
 
-def get_games(member):
-    cards_name = STAT_FILES / 'pickles/cards'
-    cards = pickle.load(open(cards_name, "rb"))
-
+def get_async_games(member):
+    cards = get_cards()
     cards.sort_values(by=['card'], inplace=True)
 
-    elixr = cards.loc[:,'elixr']
-
-    #maxl = (13*(cards['rarity'] == "A_Common")) + (11*(cards['rarity'] == "B_Rare")) + \
-    #        (8 * (cards['rarity'] == "C_Epic")) + (5*(cards['rarity'] == "D_Legendary"))
+    elixr = cards['elixr']
 
     home_cards = pd.get_dummies(cards['card']).drop(range(cards.shape[0]))
-    away_cards = pd.get_dummies(cards['card']).drop(range(cards.shape[0]))
+
+    my_key = CLASH_API
 
     i = 0
     max_i = (len(member.index))
-    ladder_cnt = 0
-    while i < min(1000, max_i):
-        player_tag = member.iloc[i, 0]
+    base_url = "https://api.clashroyale.com/v1"
+    headers = {"Authorization": "Bearer %s" % my_key}
+    itm = list()
+    itm.append(base_url)
+    itm.append(headers)
 
-        my_key = CLASH_API
-
-        base_url = "https://api.clashroyale.com/v1"
+    def call_clash(call_var):
+        base_url = call_var[0]
+        headers = call_var[1]
+        player_tag = call_var[2]
         n_player_tag = player_tag.replace('#', '%23')
         endpoint = f'/players/{n_player_tag}/battlelog'
+        dat = requests.get((base_url + endpoint), headers=headers).json()
+        return dat
 
-        request = urllib.request.Request(
-             base_url+endpoint,
-             None,
-             {
-                 "Authorization":  "Bearer %s" % my_key
-             }
-             )
+    players = list()
+    while i < min(1000, max_i):
+        ind_rng = range(i, min((i + 6), (max_i)), 1)
+        itm_lst = (itm.copy())
 
-        response = urllib.request.urlopen(request).read().decode("utf-8")
-        data = json.loads(response)
+        call_var = [itm_lst + [member.iloc[q, 0]] for q in ind_rng]
+        # data = call_clash(itm_lst)
+        pool = ThreadPool(len(call_var))
+        results = pool.map(call_clash, call_var)
+        pool.close()
+        pool.join()
+        for result in results:
+            players.append(result)
+        print(f'ranked players retrieved: {i}')
+        i += 6
 
-        j = 0
-        max_j = len(data)
+    i = 0
 
-        while j < max_j:
-            game = data[j]
+    print(f'Processing {max_i} players...')
+    home_card_list = list(home_cards.columns)
+    away_card_list = [('a_' + card) for card in home_card_list]
 
-            if (game['type'] == 'PvP') and (((game['gameMode'])['name'] == 'Ladder_CrownRush') or \
-                                            ((game['gameMode'])['name'] == 'Ladder_GoldRush') or \
-                                            ((game['gameMode'])['name'] == 'Ladder_GemRush'
-                                                                           '') or \
-                                            (game['gameMode'])['name'] == 'Ladder'):
+    card_list_compare = [card.replace('_', ' ') for card in home_card_list]
+    # adjustment for Pekka / mini-Pekka
+    card_list_compare[74] = 'P.E.K.K.A'  # 106 amend if new cards inserted
+    card_list_compare[66] = 'Mini P.E.K.K.A'
+    elixr_for_mult = elixr.values
+    home_tag = list()
+    away_tag = list()
+    home_crowns = list()
+    away_crowns = list()
+    outcome = list()
+    battletime = list()
+    game_dt = list()
+    home_elixr = list()
+    away_elixr = list()
+    home_level_gap = list()
+    away_level_gap = list()
+    net_level_gap = list()
+    home_cards_all = None
+    away_cards_all = None
 
-                home_app = home_cards.copy(deep=True)
-                home_gap = home_cards.copy(deep=True)
-                home_gap.columns = home_gap.columns + "_lvlgap"
-                away_app = away_cards.copy(deep=True)
-                away_gap = away_cards.copy(deep=True)
-                away_gap.columns = away_gap.columns + "_lvlgap"
+    for row, player in enumerate(players):
+        for subrow, game in enumerate(player):
+            if game['type'] == 'PvP':
+                # print(game['gameMode']['name'])
+                if (game['gameMode']['name'] == 'Ladder_CrownRush') or \
+                        (game['gameMode']['name'] == 'Ladder_GoldRush') or \
+                        (game['gameMode']['name'] == 'Ladder_GemRush') or \
+                        (game['gameMode']['name'] == 'Ladder'):
+                    i = i + 1
+                    if (i % 2000) == 0:
+                        print(f'Processing game #: {i + 1}')
+                    home_tag.append(game['team'][0]['tag'])
+                    away_tag.append(game['opponent'][0]['tag'])
+                    home_crown = game['team'][0]['crowns']
+                    away_crown = game['opponent'][0]['crowns']
+                    home_crowns.append(home_crown)
+                    away_crowns.append(away_crown)
+                    if home_crown == away_crown:
+                        outcome.append(-1)
+                    elif home_crown > away_crown:
+                        outcome.append(1)
+                    else:
+                        outcome.append(0)
+                    battletime.append(game['battleTime'])
+                    game_dt.append(mid(game['battleTime'], 0, 8))
 
-                battletime = game['battleTime']
+                    home_cards = np.zeros((1, len(home_card_list)), dtype=int)
+                    away_cards = np.zeros((1, len(home_card_list)), dtype=int)
+                    home_elixr_calc = 0
+                    away_elixr_calc = 0
+                    home_gap_calc = 0
+                    away_gap_calc = 0
+                    for element, card in enumerate(game['team'][0]['cards']):
+                        index_element = card_list_compare.index(card['name'])
+                        home_cards[0, index_element] = 1
+                        home_elixr_calc = home_elixr_calc + elixr_for_mult[index_element]
+                        home_gap_calc = home_gap_calc + \
+                                        ((card['maxLevel'] - card['level']) * elixr_for_mult[index_element])
 
-                dt = mid(battletime, 0, 8)
-                tm = mid(battletime, 9, 6)
-                home = game['team'][0]
-                away = game['opponent'][0]
+                    for element, card in enumerate(game['opponent'][0]['cards']):
+                        index_element = card_list_compare.index(card['name'])
+                        away_cards[0, index_element] = 1
+                        away_elixr_calc = away_elixr_calc + elixr_for_mult[index_element]
+                        away_gap_calc = away_gap_calc + \
+                                        ((card['maxLevel'] - card['level']) * elixr_for_mult[index_element])
 
-                opponent_tag = game['opponent'][0]['tag']
-                #away_exp_level = get_experience(opponent_tag)
-                away_exp_level = -1
+                    t_h_gap = home_gap_calc / 8
+                    t_a_gap = away_gap_calc / 8
+                    if i == 1:
+                        home_cards_all = home_cards
+                        away_cards_all = away_cards
+                        home_elixr = np.array(home_elixr_calc / 8, dtype=float)
+                        away_elixr = np.array(away_elixr_calc / 8, dtype=float)
+                        home_level_gap = np.array(t_h_gap, dtype=float)
+                        away_level_gap = np.array(t_a_gap, dtype=float)
+                        net_level_gap = np.array((t_a_gap - t_h_gap), dtype=float)
+                    else:
+                        home_cards_all = np.vstack((home_cards_all, home_cards))
+                        away_cards_all = np.vstack((away_cards_all, away_cards))
+                        home_elixr = np.append(home_elixr, home_elixr_calc / 8)
+                        away_elixr = np.append(away_elixr, away_elixr_calc / 8)
+                        home_level_gap = np.append(home_level_gap, t_h_gap)
+                        away_level_gap = np.append(away_level_gap, t_a_gap)
+                        net_level_gap = np.append(net_level_gap, (t_a_gap - t_h_gap))
 
-                t_cards = game['team'][0]['cards']
-                a_cards = game['opponent'][0]['cards']
+    result = pd.DataFrame(home_tag, columns=['home_tag'])
+    result['away_tag'] = away_tag
+    result['battletime'] = battletime
+    result['game_dt'] = game_dt
+    result['home_elixr'] = home_elixr
+    result['away_elixr'] = away_elixr
+    result['home_level_gap'] = home_level_gap
+    result['away_level_gap'] = away_level_gap
+    result['net_level_gap'] = net_level_gap
+    result['outcome'] = outcome
+    result['home_crowns'] = home_crowns
+    result['away_crowns'] = away_crowns
 
-                k = 0
+    home_card_df = pd.DataFrame(home_cards_all, columns=home_card_list)
+    away_card_df = pd.DataFrame(away_cards_all, columns=away_card_list)
 
-                home_app = home_app.append(pd.Series(0, index=home_app.columns), ignore_index=True)
-                home_gap = home_gap.append(pd.Series(0, index=home_gap.columns), ignore_index=True)
-                away_app = away_app.append(pd.Series(0, index=away_app.columns), ignore_index=True)
-                away_gap = away_gap.append(pd.Series(0, index=away_gap.columns), ignore_index=True)
-                while k < 8: # cycle through cards
-                    home_app[t_cards[k]['name'].replace(" ", "_").replace(".", "_")] = 1
-                    away_app[a_cards[k]['name'].replace(" ", "_").replace(".", "_")] = 1
+    result.reset_index(drop=True, inplace=True)
+    home_card_df.reset_index(drop=True, inplace=True)
+    away_card_df.reset_index(drop=True, inplace=True)
 
-                    home_gap[(t_cards[k]['name']+'_lvlgap').replace(" ", "_").replace(".", "_")] = t_cards[k]['maxLevel'] - t_cards[k]['level']
-                    away_gap[(a_cards[k]['name']+'_lvlgap').replace(" ", "_").replace(".", "_")] = a_cards[k]['maxLevel'] - a_cards[k]['level']
+    result = pd.concat([result, home_card_df, away_card_df], axis=1)
+    export = result.loc[result.outcome != -1]
 
-                    k = k + 1
-
-                home_elix = np.sum(home_app.iloc[0].values*elixr.values)/8
-                away_elix = np.sum(away_app.iloc[0].values*elixr.values)/8
-
-                home_total_gap = np.sum(home_gap.iloc[0])
-                away_total_gap = np.sum(away_gap.iloc[0])
-
-                home_bldg = np.sum(home_app.iloc[0].values*bldgs.values)
-                away_bldg = np.sum(away_app.iloc[0].values*bldgs.values)
-
-                home_spll = np.sum(home_app.iloc[0].values*splls.values)
-                away_spll = np.sum(away_app.iloc[0].values*splls.values)
-
-                if 'startingTrophies' in home:
-                    home_trph = home['startingTrophies']
-                else:
-                    home_trph = 0
-
-                if 'startingTrophies' in away:
-                    away_trph = away['startingTrophies']
-                else:
-                    away_trph = 0
-
-                h_crowns = home['crowns']
-                a_crowns = away['crowns']
-
-                outcome = -1
-                if h_crowns > a_crowns:
-                    outcome = 1
-                elif a_crowns > h_crowns:
-                    outcome = 0
-                # assemble the dataframe
-
-                away_app.columns = [('a_' + str(col)) for col in away_app.columns]
-                away_gap.columns = [('a_' + str(col)) for col in away_gap.columns]
-
-                if ladder_cnt == 0:
-                    result = (pd.concat([rankings.iloc[[i]].reset_index(), home_app, home_gap, away_app, away_gap], axis=1))
-                    result['opponent_tag']=opponent_tag
-                    result['battletime']=battletime
-                    result['dt']=dt
-                    result['tm']=tm
-                    result['home_elix']=home_elix
-                    result['away_elix']=away_elix
-                    result['home_total_gap']=home_total_gap
-                    result['away_total_gap']=away_total_gap
-                    result['home_bldg']=home_bldg
-                    result['away_bldg']=away_bldg
-                    result['home_spll']=home_spll
-                    result['away_spll']=away_spll
-                    result['home_trph']=home_trph
-                    result['away_trph']=away_trph
-                    result['h_crowns']=h_crowns
-                    result['a_crowns']=a_crowns
-                    result['away_exp_level']=away_exp_level
-                    result['tag_for_delete']=0
-                    result['outcome']=outcome
-                    ladder_cnt += 1
-                else:
-                    interim = (pd.concat([rankings.iloc[[i]].reset_index(), home_app, home_gap, away_app, away_gap], axis=1))
-                    interim['opponent_tag']=opponent_tag
-                    interim['battletime']=battletime
-                    interim['dt']=dt
-                    interim['tm']=tm
-                    interim['home_elix']=home_elix
-                    interim['away_elix']=away_elix
-                    interim['home_total_gap']=home_total_gap
-                    interim['away_total_gap']=away_total_gap
-                    interim['home_bldg']=home_bldg
-                    interim['away_bldg']=away_bldg
-                    interim['home_spll']=home_spll
-                    interim['away_spll']=away_spll
-                    interim['home_trph']=home_trph
-                    interim['away_trph']=away_trph
-                    interim['h_crowns']=h_crowns
-                    interim['a_crowns']=a_crowns
-                    interim['away_exp_level']=away_exp_level
-                    interim['tag_for_delete']=0
-                    interim['outcome']=outcome
-                    result = result.append(interim)
-                    ladder_cnt += 1
-                print(f'player: {i}  total ladder games: {ladder_cnt}')
-            elif (game['type'] == 'PvP'):
-                cwc=0
-            elif game['type'] == 'casual2v2':
-                cwc=0
-            elif game['type'] == 'clanMate':
-                cwc=0
-            elif game['type'] == 'challenge':
-                cwc=0
-            elif game['type'] == 'casual1v1':
-                cwc=0
-            elif game['type'] == 'friendly':
-                cwc=0
-            elif game['type'] == 'clanWarCollectionDay':
-                cwc=0
-            elif game['type'] == 'clanWarWarDay':
-                cwc=0
-            else:
-                cwc=0
-            j += 1
-        i += 1
-
-        # data_v2 = pd.json_normalize(data['items'])
-        # if loop_counter == 1:
-        #     data_v2['location'] = location
-        #     data_v2['country'] = country
-        #     rankings = data_v2
-        # else:
-        #     data_v2['location'] = location
-        #     data_v2['country'] = country
-        #     rankings = rankings.append(data_v2)
     success = 1
-    if ladder_cnt == 0:
+    if len(result) == 0:
         success = 0
         result = []
     return success, result
+
+
+def game_cleanup_asynch_clan(input_df):
+    input_df.sort_values(by=['battletime', 'home_tag'], inplace=True)
+
+    # opponents = input_df.opponent_tag.unique()
+    # print(f"Length of opponents is: {len(opponents)}")
+    print(f"Number of records is: {len(input_df)}")
+
+    i = 0
+    max_i = len(input_df)
+    l_home_tag = ""
+    l_away_tag = ""
+    l_battletime = ""
+    input_df['tag_for_delete'] = 0
+    while i < max_i:
+        if (int(input_df.iloc[i]['game_dt']) < 20210714)  \
+                or (input_df.iloc[i].outcome < 0):  # delete games from prior season
+            input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
+
+        if (0 == i % 20000):
+            print(f'Row: {i}')
+            print(f'Datetime: {datetime.datetime.now()}')
+
+        if i == 0:
+            l_home_tag = input_df.iloc[i].home_tag
+            l_away_tag = input_df.iloc[i].away_tag
+            l_battletime = input_df.iloc[i].battletime
+            i += 1
+        else:
+            if (l_battletime == input_df.iloc[i].battletime) and (l_away_tag == input_df.iloc[i].home_tag) and \
+                    (l_home_tag == input_df.iloc[i].away_tag):
+                input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
+
+            l_home_tag = input_df.iloc[i].home_tag
+            l_away_tag = input_df.iloc[i].away_tag
+            l_battletime = input_df.iloc[i].battletime
+            i += 1
+
+    input_df = input_df[input_df.tag_for_delete != 1]
+    print(f'New number of records is: {len(input_df)}')
+    # process unique player_info
+
+    tags_home = input_df['home_tag'].reset_index(drop=True)
+    tags_all = (
+        pd.concat([tags_home, input_df['away_tag'].reset_index(drop=True)], axis=0, ignore_index=True)).unique()
+
+    print(f"Number of players to query: {len(tags_all)}")
+
+    my_key = CLASH_API
+
+    base_url = "https://api.clashroyale.com/v1"
+    headers = {"Authorization": "Bearer %s" % my_key}
+    itm = list()
+    itm.append(base_url)
+    itm.append(headers)
+
+    def call_clash_player(call_var):
+        base_url = call_var[0]
+        headers = call_var[1]
+        player_tag = call_var[2]
+        n_player_tag = player_tag.replace('#', '%23')
+        endpoint = f'/players/{n_player_tag}'
+
+        connection_tries = 0
+        for i in range(3):
+            try:
+                dat = requests.get((base_url + endpoint), headers=headers).json()
+            except:
+                connection_tries += 1
+                print(f'Call for {player_tag} failed after {i} attempt(s).  Pausing for 2 seconds.')
+                time.sleep(2)
+            else:
+                break
+
+        tag = list()
+        exp_level = list()
+        pb_forever = list()
+        pb_lseason = list()
+        pb_bseason = list()
+
+        connection_tries = 0
+
+        try:
+            if 'tag' in dat:
+                tag.append(dat['tag'])
+                exp_level.append(dat['expLevel'])
+                if 'bestTrophies' in dat:
+                    pb_forever.append(dat['bestTrophies'])
+                else:
+                    pb_forever.append(-1)
+                if 'leagueStatistics' in dat:
+                    if 'previousSeason' in dat['leagueStatistics']:
+                        pb_lseason.append(dat['leagueStatistics']['previousSeason']['trophies'])
+                    else:
+                        pb_lseason.append(-1)
+                    if 'bestSeason' in dat['leagueStatistics']:
+                        pb_bseason.append(dat['leagueStatistics']['bestSeason']['trophies'])
+                    else:
+                        pb_bseason.append(-1)
+                else:
+                    pb_lseason.append(-1)
+                    pb_bseason.append(-1)
+            else:
+                tag.append(player_tag)
+                print(f'Player tag {player_tag} is unavailable.  Successful pull.')
+                exp_level.append(-1)
+                pb_forever.append(-1)
+                pb_lseason.append(-1)
+                pb_bseason.append(-1)
+
+        except:
+                print(f'{player_tag} is unavailable.  Unsuccessful pull.')
+                tag.append(player_tag)
+                exp_level.append(-1)
+                pb_forever.append(-1)
+                pb_lseason.append(-1)
+                pb_bseason.append(-1)
+                time.sleep(2)
+
+        pack = list()
+        pack.append(tag)
+        pack.append(exp_level)
+        pack.append(pb_forever)
+        pack.append(pb_lseason)
+        pack.append(pb_bseason)
+
+        return pack
+
+    tag = list()
+    exp_level = list()
+    pb_forever = list()
+    pb_lseason = list()
+    pb_bseason = list()
+
+    experience_data = list()
+    i = 0
+    max_i = len(tags_all)
+    while i < max_i:
+        ind_rng = range(i, min((i + 10), (max_i)), 1)
+        itm_lst = (itm.copy())
+        call_var = [itm_lst + [tags_all[q]] for q in ind_rng]
+        #packed = call_clash_player(call_var[0])
+        pool = ThreadPool(len(call_var))
+        packed = pool.map(call_clash_player, call_var)
+        pool.close()
+        pool.join()
+        for pack in packed:
+            try:
+                tag.append(pack[0][0])
+            except:
+                print(f'Unpacking error for {tags_all[i]}.')
+            exp_level.append(pack[1][0])
+            pb_forever.append(pack[2][0])
+            pb_lseason.append(pack[3][0])
+            pb_bseason.append(pack[4][0])
+        if (i % (30000*0.01)) == 0:
+            print(f'players retrieved: {i}')
+            print(f'{datetime.datetime.now()}')
+        i += 10
+
+    input_df['home_exp_level'] = -1
+    input_df['away_exp_level'] = -1
+    input_df['net_exp_level'] = -999
+    input_df['home_pb_forever'] = -1
+    input_df['away_pb_forever'] = -1
+    input_df['net_pb_forever'] = -999
+    input_df['home_pb_lseason'] = -1
+    input_df['away_pb_lseason'] = -1
+    input_df['net_pb_lseason'] = -999
+    input_df['home_pb_bseason'] = -1
+    input_df['away_pb_bseason'] = -1
+    input_df['net_pb_bseason'] = -999
+
+    i = 0
+    max_i = len(input_df)
+    while i < max_i:
+        if (i % 20000) == 0:
+            print(f'{i} records processed.')
+            print(f'{datetime.datetime.now()}')
+        try:
+            home_ind = tag.index(input_df.iloc[i]['home_tag'])
+        except:
+            print(f"Home player {input_df.iloc[i]['home_tag']} not found in latest website data.")
+            input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
+            i += 1
+            continue
+        try:
+            away_ind = tag.index(input_df.iloc[i]['away_tag'])
+        except:
+            print(f"Away player {input_df.iloc[i]['away_tag']} not found in latest website data.")
+            input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
+            i += 1
+            continue
+        input_df.iloc[i, input_df.columns.get_loc('home_exp_level')] = exp_level[home_ind]
+        input_df.iloc[i, input_df.columns.get_loc('away_exp_level')] = exp_level[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('net_exp_level')] = exp_level[home_ind] - exp_level[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('home_pb_forever')] = pb_forever[home_ind]
+        input_df.iloc[i, input_df.columns.get_loc('away_pb_forever')] = pb_forever[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('net_pb_forever')] = pb_forever[home_ind] - pb_forever[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('home_pb_lseason')] = pb_lseason[home_ind]
+        input_df.iloc[i, input_df.columns.get_loc('away_pb_lseason')] = pb_lseason[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('net_pb_lseason')] = pb_lseason[home_ind] - pb_lseason[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('home_pb_bseason')] = pb_bseason[home_ind]
+        input_df.iloc[i, input_df.columns.get_loc('away_pb_bseason')] = pb_bseason[away_ind]
+        input_df.iloc[i, input_df.columns.get_loc('net_pb_bseason')] = pb_bseason[home_ind] - pb_bseason[away_ind]
+        if ((exp_level[home_ind] == -1) or
+            (pb_forever[home_ind] == -1) or
+            (pb_forever[away_ind] == -1) or
+            (pb_lseason[home_ind] == -1) or
+            (pb_lseason[away_ind] == -1) or
+            (pb_bseason[home_ind] == -1) or
+            (pb_bseason[away_ind] == -1)):
+            input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
+        i += 1
+
+    print(f'Length of collected records is: {len(input_df)}')
+    export_df = input_df[input_df.tag_for_delete != 1]
+    print(f'Length of processed records is: {len(export_df)}')
+
+    return export_df
+
+
+def get_segment(deck_in):
+    df_out = deck_in.copy()
+
+    deck = deck_in[SEGMENT_COLS.to_list()]
+
+    CLUSTERING.labels_ = CLUSTERING.predict(deck)
+    post_clust_data_mapping = {case: cluster for case, cluster in enumerate(CLUSTERING.labels_)}
+
+    H_mapping = {case: cluster for case,
+                                   cluster in enumerate(HCLUSTERING.labels_)}
+    final_mapping = {case: H_mapping[post_clust_data_mapping[case]]
+                     for case in post_clust_data_mapping}
+
+    final_mapping_ls = list(final_mapping.values())
+    segs = [int(x + 1) for x in final_mapping_ls]
+    df_out.loc[:, 'home_seg'] = segs
+
+
+    df_out['home_seg'] = df_out['home_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
+    df_out['home_seg'] = df_out['home_seg'].astype(pd.Int32Dtype())
+    return df_out
+
+
+def get_segment_away(deck_in):
+    df_out = deck_in.copy()
+
+    segment_cols = SEGMENT_COLS.copy().to_list()
+
+    col_names = segment_cols.copy()
+    i = 0
+    max_seg = len(segment_cols)-1
+
+    while i < max_seg:
+        segment_cols[i]='a_'+segment_cols[i]
+        i += 1
+    segment_cols[max_seg] = 'away_elixr'
+
+    deck_score = pd.DataFrame(deck_in[segment_cols].values, columns=col_names)
+
+    CLUSTERING.labels_ = CLUSTERING.predict(deck_score)
+    post_clust_data_mapping = {case: cluster for case, cluster in enumerate(CLUSTERING.labels_)}
+
+    H_mapping = {case: cluster for case,
+                                   cluster in enumerate(HCLUSTERING.labels_)}
+    final_mapping = {case: H_mapping[post_clust_data_mapping[case]]
+                     for case in post_clust_data_mapping}
+
+    final_mapping_ls = list(final_mapping.values())
+    segs = [int(x + 1) for x in final_mapping_ls]
+    df_out.loc[:, 'away_seg'] = segs
+
+    df_out['away_seg'] = df_out['away_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
+    df_out['away_seg'] = df_out['away_seg'].astype(pd.Int32Dtype())
+    return df_out

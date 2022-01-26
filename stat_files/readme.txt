@@ -8,5 +8,6 @@
 # - hbounds
 # - cards (from location/data/cards)
 # - segment_cols
-# - kmeans
-# - Hclustering
+# - kmeans.pickle
+# - hclust.pickle
+# - new_segment_map.pickle

@@ -172,7 +172,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 kmeans_name = STAT_FILES / 'pickles/kmeans.pickle'
 hclust_name = STAT_FILES / 'pickles/hclust.pickle'
-
+new_segment_map_name = STAT_FILES / 'pickles/new_segment_map.pickle'
+segment_cols_name = STAT_FILES / 'pickles/segment_cols'
+lbounds_name = STAT_FILES / 'pickles/lbounds'
+ubounds_name = STAT_FILES / 'pickles/ubounds'
 
 CLUSTERING = load(kmeans_name)
 HCLUSTERING = load(hclust_name)
+NEW_SEGMENT_MAP = load(new_segment_map_name)
+SEGMENT_COLS = load(segment_cols_name)
+LBOUNDS = load(lbounds_name)
+UBOUNDS = load(ubounds_name)
