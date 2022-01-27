@@ -11,3 +11,5 @@
 # - kmeans.pickle
 # - hclust.pickle
 # - new_segment_map.pickle
+# - max_seg
+# - max_a_seg

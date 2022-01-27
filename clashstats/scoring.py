@@ -1,8 +1,10 @@
-from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, CLASH_API, LBOUNDS, UBOUNDS
+from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
+    CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_SEL_COLS, MAX_SEG, MAX_A_SEG, ELIXR_LBOUNDS, ELIXR_UBOUNDS
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 import requests
 import datetime
+import copy
 import time
 import pickle
 import urllib.request
@@ -20,8 +22,7 @@ def get_segment(deck_in):
     df_out = deck_in
     deck_df = get_elixr(deck_in)
 
-    segcols_name = STAT_FILES / 'pickles/segment_cols'
-    segment_cols = pickle.load(open(segcols_name, "rb"))
+    segment_cols = SEGMENT_COLS.copy()
 
     deck = deck_df[segment_cols]
 
@@ -37,8 +38,11 @@ def get_segment(deck_in):
                      for case in post_clust_data_mapping}
 
     final_mapping_ls = list(final_mapping.values())
-    segs = [x + 1 for x in final_mapping_ls]
+    segs = [int(x + 1) for x in final_mapping_ls]
     df_out.loc[:, 'home_seg'] = segs
+
+    df_out['home_seg'] = df_out['home_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
+    df_out['home_seg'] = df_out['home_seg'].astype(pd.Int32Dtype())
     return df_out
 
 
@@ -93,20 +97,26 @@ def auto_pull(member):
         return df_out, lbounds, success
     clan_df_v2 = game_cleanup_asynch_clan(df)
 
-    team = clan_df_v2.home_tag.unique()
-    i = 0
-    for person in team:
-        temp_df = clan_df_v2.loc[(member['tag'] == person).index]
-        temp_df_v2 = get_segment_away(get_segment(temp_df))
+    clan_df_v2.sort_values(by=['game_dt', 'game_tm'], ascending=False, inplace=True)
 
-        results = get_probs_seg_clan(temp_df_v2)
-        results.sort_values(by=['date', 'time'], ascending=False, inplace=True)
-        if i == 0:
-            df_out = results
-        else:
-            df_out = df_out.append(results, ignore_index=True)
-        i += 1
+    clan_df_v2 = get_segment_away(get_segment(clan_df_v2))
 
+    analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
+    _, clan_df_v2 = add_trophs(clan_df_v2)
+    _, clan_df_v2 = add_segments_home(clan_df_v2)
+    _, clan_df_v2 = add_segments_away(clan_df_v2)
+    _, clan_df_v2 = add_elixir_home(clan_df_v2)
+    _, clan_df_v2 = add_elixir_away(clan_df_v2)
+
+    #        results = get_probs_seg_clan(temp_df_v2)
+    #    results.sort_values(by=['date', 'time'], ascending=False, inplace=True)
+    #    if i == 0:
+    #        df_out = results
+    #    else:
+    #        df_out = df_out.append(results, ignore_index=True)
+    #    i += 1
+
+    df_out = []
     lbounds = LBOUNDS
 
     return df_out, lbounds, success
@@ -152,12 +162,12 @@ def get_async_games(member):
         pool.join()
         for result in results:
             players.append(result)
-        print(f'ranked players retrieved: {i}')
+        # print(f'ranked players retrieved: {i}')
         i += 6
 
     i = 0
 
-    print(f'Processing {max_i} players...')
+    # print(f'Processing {max_i} players...')
     home_card_list = list(home_cards.columns)
     away_card_list = [('a_' + card) for card in home_card_list]
 
@@ -173,6 +183,7 @@ def get_async_games(member):
     outcome = list()
     battletime = list()
     game_dt = list()
+    game_tm = list()
     home_elixr = list()
     away_elixr = list()
     home_level_gap = list()
@@ -206,7 +217,7 @@ def get_async_games(member):
                         outcome.append(0)
                     battletime.append(game['battleTime'])
                     game_dt.append(mid(game['battleTime'], 0, 8))
-
+                    game_tm.append(mid(game['battleTime'], 9, 6))
                     home_cards = np.zeros((1, len(home_card_list)), dtype=int)
                     away_cards = np.zeros((1, len(home_card_list)), dtype=int)
                     home_elixr_calc = 0
@@ -250,6 +261,7 @@ def get_async_games(member):
     result['away_tag'] = away_tag
     result['battletime'] = battletime
     result['game_dt'] = game_dt
+    result['game_tm'] = game_tm
     result['home_elixr'] = home_elixr
     result['away_elixr'] = away_elixr
     result['home_level_gap'] = home_level_gap
@@ -277,11 +289,11 @@ def get_async_games(member):
 
 
 def game_cleanup_asynch_clan(input_df):
-    input_df.sort_values(by=['battletime', 'home_tag'], inplace=True)
+    input_df.sort_values(by=['battletime', 'home_tag'], ascending=False, inplace=True)
 
     # opponents = input_df.opponent_tag.unique()
     # print(f"Length of opponents is: {len(opponents)}")
-    print(f"Number of records is: {len(input_df)}")
+    # print(f"Number of records is: {len(input_df)}")
 
     i = 0
     max_i = len(input_df)
@@ -295,8 +307,9 @@ def game_cleanup_asynch_clan(input_df):
             input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
 
         if (0 == i % 20000):
-            print(f'Row: {i}')
-            print(f'Datetime: {datetime.datetime.now()}')
+            # print(f'Row: {i}')
+            #print(f'Datetime: {datetime.datetime.now()}')
+            pass
 
         if i == 0:
             l_home_tag = input_df.iloc[i].home_tag
@@ -314,14 +327,14 @@ def game_cleanup_asynch_clan(input_df):
             i += 1
 
     input_df = input_df[input_df.tag_for_delete != 1]
-    print(f'New number of records is: {len(input_df)}')
+    # print(f'New number of records is: {len(input_df)}')
     # process unique player_info
 
     tags_home = input_df['home_tag'].reset_index(drop=True)
     tags_all = (
         pd.concat([tags_home, input_df['away_tag'].reset_index(drop=True)], axis=0, ignore_index=True)).unique()
 
-    print(f"Number of players to query: {len(tags_all)}")
+    # print(f"Number of players to query: {len(tags_all)}")
 
     my_key = CLASH_API
 
@@ -344,7 +357,7 @@ def game_cleanup_asynch_clan(input_df):
                 dat = requests.get((base_url + endpoint), headers=headers).json()
             except:
                 connection_tries += 1
-                print(f'Call for {player_tag} failed after {i} attempt(s).  Pausing for 2 seconds.')
+                # print(f'Call for {player_tag} failed after {i} attempt(s).  Pausing for 2 seconds.')
                 time.sleep(2)
             else:
                 break
@@ -379,14 +392,14 @@ def game_cleanup_asynch_clan(input_df):
                     pb_bseason.append(-1)
             else:
                 tag.append(player_tag)
-                print(f'Player tag {player_tag} is unavailable.  Successful pull.')
+                # print(f'Player tag {player_tag} is unavailable.  Successful pull.')
                 exp_level.append(-1)
                 pb_forever.append(-1)
                 pb_lseason.append(-1)
                 pb_bseason.append(-1)
 
         except:
-                print(f'{player_tag} is unavailable.  Unsuccessful pull.')
+                # print(f'{player_tag} is unavailable.  Unsuccessful pull.')
                 tag.append(player_tag)
                 exp_level.append(-1)
                 pb_forever.append(-1)
@@ -425,14 +438,16 @@ def game_cleanup_asynch_clan(input_df):
             try:
                 tag.append(pack[0][0])
             except:
-                print(f'Unpacking error for {tags_all[i]}.')
+                # print(f'Unpacking error for {tags_all[i]}.')
+                pass
             exp_level.append(pack[1][0])
             pb_forever.append(pack[2][0])
             pb_lseason.append(pack[3][0])
             pb_bseason.append(pack[4][0])
         if (i % (30000*0.01)) == 0:
-            print(f'players retrieved: {i}')
-            print(f'{datetime.datetime.now()}')
+            # print(f'players retrieved: {i}')
+            # print(f'{datetime.datetime.now()}')
+            pass
         i += 10
 
     input_df['home_exp_level'] = -1
@@ -452,19 +467,20 @@ def game_cleanup_asynch_clan(input_df):
     max_i = len(input_df)
     while i < max_i:
         if (i % 20000) == 0:
-            print(f'{i} records processed.')
-            print(f'{datetime.datetime.now()}')
+            # print(f'{i} records processed.')
+            # print(f'{datetime.datetime.now()}')
+            pass
         try:
             home_ind = tag.index(input_df.iloc[i]['home_tag'])
         except:
-            print(f"Home player {input_df.iloc[i]['home_tag']} not found in latest website data.")
+            # print(f"Home player {input_df.iloc[i]['home_tag']} not found in latest website data.")
             input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
             i += 1
             continue
         try:
             away_ind = tag.index(input_df.iloc[i]['away_tag'])
         except:
-            print(f"Away player {input_df.iloc[i]['away_tag']} not found in latest website data.")
+            # print(f"Away player {input_df.iloc[i]['away_tag']} not found in latest website data.")
             input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
             i += 1
             continue
@@ -490,9 +506,9 @@ def game_cleanup_asynch_clan(input_df):
             input_df.iloc[i, input_df.columns.get_loc('tag_for_delete')] = 1
         i += 1
 
-    print(f'Length of collected records is: {len(input_df)}')
+    # print(f'Length of collected records is: {len(input_df)}')
     export_df = input_df[input_df.tag_for_delete != 1]
-    print(f'Length of processed records is: {len(export_df)}')
+    # print(f'Length of processed records is: {len(export_df)}')
 
     return export_df
 
@@ -551,3 +567,118 @@ def get_segment_away(deck_in):
     df_out['away_seg'] = df_out['away_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
     df_out['away_seg'] = df_out['away_seg'].astype(pd.Int32Dtype())
     return df_out
+
+
+def add_trophs(analyze_df):
+
+    trophs = analyze_df['home_pb_lseason'].tolist()
+    max_trophs = len(LBOUNDS)
+    i = 1
+    new_cols = list()
+    while i <= max_trophs:
+        col = 'trophs' + str(i).zfill(3)
+        lower = LBOUNDS[i - 1]
+        upper = UBOUNDS[i - 1]
+        if i == max_trophs:
+            analyze_df[col] = ((trophs >= lower).astype(int))
+        else:
+            analyze_df[col] = (((trophs < upper) * (trophs >= lower)).astype(int))
+        new_cols.append(col)
+        i += 1
+
+    return new_cols, analyze_df
+
+
+def add_segments_home(analyze_df):
+    segs = analyze_df.home_seg
+
+    max_seg = copy.deepcopy(MAX_SEG)
+
+    new_cols = list()
+
+    i = 1
+    while i <= max_seg:
+        col = 'seg' + str(i).zfill(3)
+        analyze_df = pd.concat([analyze_df, pd.DataFrame((1 * (segs == i)).values, columns=[col])], axis=1)
+        new_cols.append(col)
+        i += 1
+
+    # i = 1
+    # while i <= max_seg:
+    #     col = 'a_seg' + str(i).zfill(3)
+    #     analyze_df[col] = 1 * (a_segs == i)
+    #     new_cols.append(col)
+    #     i += 1
+
+    return new_cols, analyze_df
+
+
+def add_segments_away(analyze_df):
+    a_segs = analyze_df.away_seg
+
+    max_seg = copy.deepcopy(MAX_A_SEG)
+
+    new_cols = list()
+
+    # i = 1
+    # while i <= max_seg:
+    #     col = 'seg' + str(i).zfill(3)
+    #     analyze_df[col] = 1 * (segs == i)
+    #     new_cols.append(col)
+    #     i += 1
+
+    i = 1
+    while i <= max_seg:
+        col = 'a_seg' + str(i).zfill(3)
+        analyze_df = pd.concat([analyze_df, pd.DataFrame((1 * (a_segs == i)).values, columns=[col])], axis=1)
+        new_cols.append(col)
+        i += 1
+
+    return new_cols, analyze_df
+
+
+def add_elixir_home(analyze_df):
+
+    lbounds = ELIXR_LBOUNDS.copy()
+    ubounds = ELIXR_UBOUNDS.copy()
+
+    elixir = analyze_df['home_elixr'].tolist()
+
+    max_elixir = len(lbounds)
+    i = 1
+    new_cols = list()
+    while i <= max_elixir:
+        col = 'home_elixir_' + str(i).zfill(3)
+        lower = lbounds[i - 1]
+        upper = ubounds[i - 1]
+        if i == max_elixir:
+            analyze_df = pd.concat([analyze_df, pd.DataFrame(((elixir >= lower).astype(int)), columns=[col])], axis=1)
+        else:
+            analyze_df = pd.concat([analyze_df, pd.DataFrame((((elixir < upper) * (elixir >= lower)).astype(int)), columns=[col])], axis=1)
+        new_cols.append(col)
+        i += 1
+
+    return new_cols, analyze_df
+
+
+def add_elixir_away(analyze_df):
+    lbounds = ELIXR_LBOUNDS.copy()
+    ubounds = ELIXR_UBOUNDS.copy()
+
+    elixir = analyze_df['away_elixr'].tolist()
+
+    max_elixir = len(lbounds)
+    i = 1
+    new_cols = list()
+    while i <= max_elixir:
+        col = 'away_elixir_' + str(i).zfill(3)
+        lower = lbounds[i - 1]
+        upper = ubounds[i - 1]
+        if i == max_elixir:
+            analyze_df = pd.concat([analyze_df, pd.DataFrame(((elixir >= lower).astype(int)), columns=[col])], axis=1)
+        else:
+            analyze_df = pd.concat([analyze_df, pd.DataFrame((((elixir < upper) * (elixir >= lower)).astype(int)), columns=[col])], axis=1)
+        new_cols.append(col)
+        i += 1
+
+    return new_cols, analyze_df
