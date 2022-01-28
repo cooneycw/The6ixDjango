@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import math
+from scipy.stats import pearsonr
 
 
 @login_required()
@@ -731,6 +732,8 @@ def membslct(request):
 @login_required()
 def membrept(request):
     title = 'The6ixClan: Member Report'
+    show_df = False
+    show_p = False
     try:
         clan = request.session['clan']
         member_list = request.session['member_list']
@@ -751,9 +754,9 @@ def membrept(request):
     if request.method == 'POST':
         form = memberReptForm(data=request.POST)
         if request.POST.get('Return to Clan Select') == 'Return to Clan Select':
-            redirect('clashstats-clanrept')
+            return redirect('clashstats-clanrept')
         elif request.POST.get('Return to Menu') == 'Return to Menu':
-            redirect('clashstats-menu')
+            return redirect('clashstats-menu')
         elif request.POST.get('Next Member') == 'Next Member':
             curr_page = min(len(member_sels), (curr_page + 1))
             request.session['curr_page'] = curr_page
@@ -763,12 +766,71 @@ def membrept(request):
 
     df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
 
+    if success == 0:
+        messages.warning('No ladder games played for this clan member.')
+        show_df = False
+        show_p = False
+        memberStats = ""
+        form = memberReptForm()
+        context = {
+            'title': title,
+            'show_df': show_df,
+            'dyn_title': dyn_title,
+            'curr_page': curr_page,
+            'max_page': len(member_sels),
+            'memberStats': memberStats,
+            'form': form,
+        }
+        return render(request, 'clashstats/membrept.html', context)
+
+    show_df = True
+    df = df.sort_values(by=['home_tag', 'game_dt', 'game_tm'], ascending=[True, False, False]).reset_index()
+    df_total = df.groupby('home_tag') \
+        .agg({'outcome': 'sum', 'expected_win_ratio': 'sum', 'away_seg': 'count'}).reset_index()
+    df_total = df_total.rename(columns={'away_seg': 'cnt', 'outcome': 'win'})
+    df_total = df_total.sort_values(by=['home_tag']).reset_index()
+
+    df = df.rename(columns={'away_seg': 'opponent_seg', 'home_seg': 'player_seg'})
+    display_df = df[['player_seg', 'opponent_seg']]
+    display_df['win'] = df['outcome']
+    display_df['exp_win_ratio'] = pd.Series(["{0:.1f}%".format(val * 100)
+                                             for val in df['expected_win_ratio']], index=df.index)
+    display_df['time'] = df['game_tm'].values
+    display_df['date'] = df['game_dt'].values
+
+    display_df = display_df[['date', 'time', 'player_seg', 'opponent_seg', 'win', 'exp_win_ratio']]
+
+    memberStats = display_df.to_html(index=False, classes='table table-striped table-hover',
+                                          header="true", justify="center")
+
+    game_cnt = "{:.0f}".format(float(df_total.cnt))
+    act_win_ratio = "{:.1%}".format(float(df_total.win/df_total.cnt))
+    exp_win_ratio = "{:.1%}".format(float(df_total.expected_win_ratio/df_total.cnt))
+    if len(df) < 5:
+        show_p = False
+        x = 0
+        y = 0
+    else:
+        show_p = True
+        x, y = pearsonr(df['expected_win_ratio'], df['outcome'])
+    pearson_r = "{:.1%}".format(float(x))
+    pvalue = "{:.1%}".format(float(y))
+
     form = memberReptForm()
     context = {
         'title': title,
+        'show_df': show_df,
+        'show_p': show_p,
         'dyn_title': dyn_title,
         'curr_page': curr_page,
-        'max_page' : len(member_sels),
+        'max_page': len(member_sels),
+        'memberStats': memberStats,
+        'player': member_df.iloc[[member_sels[curr_page-1]],1].values[0],
+        'game_cnt': game_cnt,
+        'act_win_ratio': act_win_ratio,
+        'exp_win_ratio': exp_win_ratio,
+        'pearson_r': pearson_r,
+        'p_value': pvalue,
         'form' : form,
     }
     return render(request, 'clashstats/membrept.html', context)

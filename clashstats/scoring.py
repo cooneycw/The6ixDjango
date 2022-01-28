@@ -1,5 +1,6 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
-    CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_SEL_COLS, MAX_SEG, MAX_A_SEG, ELIXR_LBOUNDS, ELIXR_UBOUNDS
+    CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 import requests
@@ -102,11 +103,14 @@ def auto_pull(member):
     clan_df_v2 = get_segment_away(get_segment(clan_df_v2))
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
-    _, clan_df_v2 = add_trophs(clan_df_v2)
-    _, clan_df_v2 = add_segments_home(clan_df_v2)
-    _, clan_df_v2 = add_segments_away(clan_df_v2)
-    _, clan_df_v2 = add_elixir_home(clan_df_v2)
-    _, clan_df_v2 = add_elixir_away(clan_df_v2)
+    _, clan_df_v2 = add_trophs(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = add_segments_home(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = add_segments_away(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = add_elixir_home(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = add_elixir_away(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = code_features(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = code_away_features(clan_df_v2, analysis_sel_cols)
+    _, clan_df_v2 = code_home_features(clan_df_v2, analysis_sel_cols)
 
     #        results = get_probs_seg_clan(temp_df_v2)
     #    results.sort_values(by=['date', 'time'], ascending=False, inplace=True)
@@ -116,10 +120,14 @@ def auto_pull(member):
     #        df_out = df_out.append(results, ignore_index=True)
     #    i += 1
 
-    df_out = []
-    lbounds = LBOUNDS
+    lr_test = LR_MODEL.predict_proba(clan_df_v2.loc[:, analysis_sel_cols])
+    if LR_MODEL.classes_[0] == 0:
+        pred_outcome = lr_test[:, 1]
+    else:
+        pred_outcome = lr_test[:, 0]
+    clan_df_v2 = pd.concat([clan_df_v2, pd.DataFrame(pred_outcome, columns=['expected_win_ratio'])], axis=1)
 
-    return df_out, lbounds, success
+    return clan_df_v2, LBOUNDS, success
 
 
 def get_async_games(member):
@@ -569,7 +577,7 @@ def get_segment_away(deck_in):
     return df_out
 
 
-def add_trophs(analyze_df):
+def add_trophs(analyze_df, analysis_sel_cols):
 
     trophs = analyze_df['home_pb_lseason'].tolist()
     max_trophs = len(LBOUNDS)
@@ -589,7 +597,7 @@ def add_trophs(analyze_df):
     return new_cols, analyze_df
 
 
-def add_segments_home(analyze_df):
+def add_segments_home(analyze_df, analysis_sel_cols):
     segs = analyze_df.home_seg
 
     max_seg = copy.deepcopy(MAX_SEG)
@@ -613,7 +621,7 @@ def add_segments_home(analyze_df):
     return new_cols, analyze_df
 
 
-def add_segments_away(analyze_df):
+def add_segments_away(analyze_df, analysis_sel_cols):
     a_segs = analyze_df.away_seg
 
     max_seg = copy.deepcopy(MAX_A_SEG)
@@ -637,7 +645,7 @@ def add_segments_away(analyze_df):
     return new_cols, analyze_df
 
 
-def add_elixir_home(analyze_df):
+def add_elixir_home(analyze_df, analysis_sel_cols):
 
     lbounds = ELIXR_LBOUNDS.copy()
     ubounds = ELIXR_UBOUNDS.copy()
@@ -661,7 +669,7 @@ def add_elixir_home(analyze_df):
     return new_cols, analyze_df
 
 
-def add_elixir_away(analyze_df):
+def add_elixir_away(analyze_df, analysis_sel_cols):
     lbounds = ELIXR_LBOUNDS.copy()
     ubounds = ELIXR_UBOUNDS.copy()
 
@@ -682,3 +690,75 @@ def add_elixir_away(analyze_df):
         i += 1
 
     return new_cols, analyze_df
+
+
+def code_features(input_df, analysis_sel_cols):
+    analysis_var_list = ANALYSIS_VAR_LIST.copy()
+
+    analysis_home = analysis_var_list[0:1 * 106]  # 106 amendment
+    analysis_away = analysis_var_list[106:2 * 106]  # 106 amendment
+
+    feature_list = [var for var in analysis_sel_cols if "_x_" in var]
+
+    home_indicators = input_df[analysis_home].values
+    away_indicators = input_df[analysis_away].values
+
+    new_indicators = np.zeros((len(home_indicators), len(feature_list)), dtype=int)
+
+    for i, home_value in enumerate(analysis_home):
+        for j, away_value in enumerate(analysis_away):
+            test_value = home_value + '_x_' + away_value
+            if test_value in feature_list:
+                match_ind = feature_list.index(test_value)
+                new_indicators[:, match_ind] = home_indicators[:, i] * away_indicators[:, j]
+
+    temp_df = pd.DataFrame(new_indicators, columns=feature_list)
+    input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
+    return analysis_sel_cols, input_df
+
+
+def code_home_features(input_df, analysis_sel_cols):
+    analysis_var_list = ANALYSIS_VAR_LIST.copy()
+
+    analysis_home = analysis_var_list[0:1 * 106]  # 106 amendment
+
+    feature_list = [var for var in analysis_sel_cols if "_q_" in var]
+
+    home_indicators = input_df[analysis_home].values
+
+    new_indicators = np.zeros((len(home_indicators), len(feature_list)), dtype=int)
+
+    for i, home_value in enumerate(analysis_home):
+        for j, home2_value in enumerate(analysis_home):
+            test_value = home_value + '_q_' + home2_value
+            if test_value in feature_list:
+                match_ind = feature_list.index(test_value)
+                new_indicators[:, match_ind] = home_indicators[:, i] * home_indicators[:, j]
+
+    temp_df = pd.DataFrame(new_indicators, columns=feature_list)
+    input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
+
+    return analysis_sel_cols, input_df
+
+
+def code_away_features(input_df, analysis_sel_cols):
+    analysis_var_list = ANALYSIS_VAR_LIST.copy()
+
+    analysis_away = analysis_var_list[106:2 * 106]  # 106 amendment
+
+    feature_list = [var for var in analysis_sel_cols if "_z_" in var]
+
+    away_indicators = input_df[analysis_away].values
+
+    new_indicators = np.zeros((len(away_indicators), len(feature_list)), dtype=int)
+
+    for i, away_value in enumerate(analysis_away):
+        for j, away2_value in enumerate(analysis_away):
+            test_value = away_value + '_z_' + away2_value
+            if test_value in feature_list:
+                match_ind = feature_list.index(test_value)
+                new_indicators[:, match_ind] = away_indicators[:, i] * away_indicators[:, j]
+
+    temp_df = pd.DataFrame(new_indicators, columns=feature_list)
+    input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
+    return analysis_sel_cols, input_df
