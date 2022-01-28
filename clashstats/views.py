@@ -3,8 +3,8 @@ from django.http import HttpResponseNotFound
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm
-from .scoring import get_segment, get_cards, get_clan, auto_pull
-from The6ix.settings import STAT_DATE, STAT_FILES
+from .scoring import get_segment, get_cards, get_clan, auto_pull, mid
+from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL
 import pandas as pd
 import numpy as np
 import pickle
@@ -791,17 +791,21 @@ def membrept(request):
     df_total = df_total.sort_values(by=['home_tag']).reset_index()
 
     df = df.rename(columns={'away_seg': 'opponent_seg', 'home_seg': 'player_seg'})
-    display_df = df[['player_seg', 'opponent_seg']]
-    display_df['win'] = df['outcome']
+    display_df = df[['home_tag', 'away_tag']].reset_index()
+    display_df['home_tag'] = df.apply(lambda x: f'<a href="https://royaleapi.com/player/{(mid(x["home_tag"], 1, 9).rstrip())}/battles">{mid(x["home_tag"], 1, 9)}</a>', axis=1)
+    display_df['away_tag'] = df.apply(lambda x: f'<a href="https://royaleapi.com/player/{(mid(x["away_tag"], 1, 9)).rstrip()}/battles">{mid(x["away_tag"], 1, 9)}</a>', axis=1)
+    display_df['player_seg'] = df.apply(lambda x: f'<a href="{BASE_URL}/clashstats/segment/{(str(x["player_seg"])).strip()}">{str(x["player_seg"]).strip()}</a>', axis=1)
+    display_df['opponent_seg'] = df.apply(lambda x: f'<a href="{BASE_URL}/clashstats/segment/{(str(x["opponent_seg"])).strip()}">{str(x["opponent_seg"]).strip()}</a>', axis=1)
+    display_df['win'] = df['outcome'].values
     display_df['exp_win_ratio'] = pd.Series(["{0:.1f}%".format(val * 100)
-                                             for val in df['expected_win_ratio']], index=df.index)
+                                             for val in df['expected_win_ratio']], index=df.index).values
     display_df['time'] = df['game_tm'].values
     display_df['date'] = df['game_dt'].values
 
-    display_df = display_df[['date', 'time', 'player_seg', 'opponent_seg', 'win', 'exp_win_ratio']]
+    display_df = display_df[['date', 'time', 'home_tag', 'away_tag', 'player_seg', 'opponent_seg', 'win', 'exp_win_ratio']]
 
     memberStats = display_df.to_html(index=False, classes='table table-striped table-hover',
-                                          header="true", justify="center")
+                                          header="true", justify="center", escape=False)
 
     game_cnt = "{:.0f}".format(float(df_total.cnt))
     act_win_ratio = "{:.1%}".format(float(df_total.win/df_total.cnt))

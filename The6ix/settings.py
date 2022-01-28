@@ -40,8 +40,10 @@ SECRET_KEY = secret_dict['SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 if ec2 == True:
     DEBUG = False
+    BASE_URL = 'https://the6ixclan.ca'
 else:
     DEBUG = True
+    BASE_URL = 'http://127.0.0.1:8000'
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.the6ixclan.ca']
 
