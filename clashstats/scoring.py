@@ -185,7 +185,9 @@ def get_async_games(member):
     card_list_compare[66] = 'Mini P.E.K.K.A'
     elixr_for_mult = elixr.values
     home_tag = list()
+    home_name = list()
     away_tag = list()
+    away_name = list()
     home_crowns = list()
     away_crowns = list()
     outcome = list()
@@ -212,7 +214,9 @@ def get_async_games(member):
                     if (i % 2000) == 0:
                         print(f'Processing game #: {i + 1}')
                     home_tag.append(game['team'][0]['tag'])
+                    home_name.append(game['team'][0]['name'])
                     away_tag.append(game['opponent'][0]['tag'])
+                    away_name.append(game['opponent'][0]['name'])
                     home_crown = game['team'][0]['crowns']
                     away_crown = game['opponent'][0]['crowns']
                     home_crowns.append(home_crown)
@@ -266,7 +270,9 @@ def get_async_games(member):
                         net_level_gap = np.append(net_level_gap, (t_a_gap - t_h_gap))
 
     result = pd.DataFrame(home_tag, columns=['home_tag'])
+    result['home_name'] = home_name
     result['away_tag'] = away_tag
+    result['away_name'] = away_name
     result['battletime'] = battletime
     result['game_dt'] = game_dt
     result['game_tm'] = game_tm

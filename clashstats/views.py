@@ -792,8 +792,8 @@ def membrept(request):
 
     df = df.rename(columns={'away_seg': 'opponent_seg', 'home_seg': 'player_seg'})
     display_df = df[['home_tag', 'away_tag']].reset_index()
-    display_df['home_tag'] = df.apply(lambda x: f'<a href="https://royaleapi.com/player/{(mid(x["home_tag"], 1, 9).rstrip())}/battles">{mid(x["home_tag"], 1, 9)}</a>', axis=1)
-    display_df['away_tag'] = df.apply(lambda x: f'<a href="https://royaleapi.com/player/{(mid(x["away_tag"], 1, 9)).rstrip()}/battles">{mid(x["away_tag"], 1, 9)}</a>', axis=1)
+    #  display_df['home_tag'] = df.apply(lambda x: f'<a href="https://royaleapi.com/player/{(mid(x["home_tag"], 1, 9).rstrip())}/battles">{x["home_name"]}</a>', axis=1)
+    display_df['away_tag'] = df.apply(lambda x: f'<a href="https://royaleapi.com/player/{(mid(x["away_tag"], 1, 9)).rstrip()}/battles">{x["away_name"]}</a>', axis=1)
     display_df['player_seg'] = df.apply(lambda x: f'<a href="{BASE_URL}/clashstats/segment/{(str(x["player_seg"])).strip()}">{str(x["player_seg"]).strip()}</a>', axis=1)
     display_df['opponent_seg'] = df.apply(lambda x: f'<a href="{BASE_URL}/clashstats/segment/{(str(x["opponent_seg"])).strip()}">{str(x["opponent_seg"]).strip()}</a>', axis=1)
     display_df['win'] = df['outcome'].values
@@ -802,7 +802,7 @@ def membrept(request):
     display_df['time'] = df['game_tm'].values
     display_df['date'] = df['game_dt'].values
 
-    display_df = display_df[['date', 'time', 'home_tag', 'away_tag', 'player_seg', 'opponent_seg', 'win', 'exp_win_ratio']]
+    display_df = display_df[['date', 'time', 'away_tag', 'player_seg', 'opponent_seg', 'win', 'exp_win_ratio']]
 
     memberStats = display_df.to_html(index=False, classes='table table-striped table-hover',
                                           header="true", justify="center", escape=False)
@@ -830,6 +830,7 @@ def membrept(request):
         'max_page': len(member_sels),
         'memberStats': memberStats,
         'player': member_df.iloc[[member_sels[curr_page-1]],1].values[0],
+        'player_tag': mid(df['home_tag'].iloc[0],1,9).rstrip(),
         'game_cnt': game_cnt,
         'act_win_ratio': act_win_ratio,
         'exp_win_ratio': exp_win_ratio,
