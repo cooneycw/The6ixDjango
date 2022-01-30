@@ -801,15 +801,15 @@ def auto_analyze(input_df):
         lseason_trophies_impact = 0
 
     btroph_df = base_df.copy()
-    btroph_df.loc[0, 'net_pb_bseason'] = 0
+    btroph_df.loc[:, 'net_pb_bseason'] = 0
     bseason_trophies_impact = (base_est / (LR_MODEL.predict_proba(btroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
 
     etroph_df = base_df.copy()
-    etroph_df.loc[0, 'net_exp_level'] = 0
+    etroph_df.loc[:, 'net_exp_level'] = 0
     exp_trophies_impact = (base_est / (LR_MODEL.predict_proba(etroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
 
     ltroph_df = base_df.copy()
-    ltroph_df.loc[0, 'net_level_gap'] = 0
+    ltroph_df.loc[:, 'net_level_gap'] = 0
     level_trophies_impact = (base_est / (LR_MODEL.predict_proba(ltroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
 
     deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (1 + exp_trophies_impact) / (1+level_trophies_impact) - 1
