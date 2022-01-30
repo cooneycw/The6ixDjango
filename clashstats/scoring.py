@@ -15,6 +15,11 @@ import numpy as np
 from sklearn.preprocessing import normalize
 
 
+def rowIndex(row):
+    ret_val = int(row.name) + 1
+    return ret_val
+
+
 def mid(s, offset, amount):
     return s[offset:offset+amount]
 
@@ -768,3 +773,75 @@ def code_away_features(input_df, analysis_sel_cols):
     temp_df = pd.DataFrame(new_indicators, columns=feature_list)
     input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
     return analysis_sel_cols, input_df
+
+
+def auto_analyze(input_df):
+    if LR_MODEL.classes_[0] == 0:
+        pred_index = 1
+    else:
+        pred_index = 0
+
+    analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
+    base_df = input_df.loc[:, analysis_sel_cols]
+    base_est = LR_MODEL.predict_proba(base_df)[0, pred_index]
+
+    intercept_df = base_df.copy()
+    for col in intercept_df.columns:
+        intercept_df[col].values[:] = 0
+    intercept = LR_MODEL.predict_proba(intercept_df)[0, pred_index]
+
+    troph_cols = [item for item in analysis_sel_cols if "trophs" in item]
+    if len(troph_cols) > 0:
+        troph_df = base_df.copy()
+        troph_df.drop(troph_cols, axis=1, inplace=True)
+        troph_df['home_pb_lseason'] = 5700
+        _, troph_df = add_trophs(troph_df, analysis_sel_cols)
+        lseason_trophies_impact = ((LR_MODEL.predict_proba(troph_df.loc[:, analysis_sel_cols])[0, pred_index]) / base_est) - 1
+    else:
+        lseason_trophies_impact = 0
+
+    btroph_df = base_df.copy()
+    btroph_df.loc[0, 'net_pb_bseason'] = 0
+    bseason_trophies_impact = (base_est / (LR_MODEL.predict_proba(btroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+
+    etroph_df = base_df.copy()
+    etroph_df.loc[0, 'net_exp_level'] = 0
+    exp_trophies_impact = (base_est / (LR_MODEL.predict_proba(etroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+
+    ltroph_df = base_df.copy()
+    ltroph_df.loc[0, 'net_level_gap'] = 0
+    level_trophies_impact = (base_est / (LR_MODEL.predict_proba(ltroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+
+    deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (1 + exp_trophies_impact) / (1+level_trophies_impact) - 1
+
+    #
+    # _, clan_df_v2 = add_trophs(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_segments_home(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_segments_away(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_elixir_home(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_elixir_away(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = code_features(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = code_away_features(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = code_home_features(clan_df_v2, analysis_sel_cols)
+
+    # lr_test = LR_MODEL.predict_proba(clan_df_v2.loc[:, analysis_sel_cols])
+
+    ret_dict = {
+        'base_est': base_est,
+        'intercept': intercept,
+        'lseason_trophies_impact': lseason_trophies_impact,
+        'bseason_trophies_impact': bseason_trophies_impact,
+        'exp_trophies_impact': exp_trophies_impact,
+        'level_trophies_impact': level_trophies_impact,
+        'deck_impact': deck_impact,
+    }
+    return ret_dict
+
+
+def auto_reco(input_df):
+    if LR_MODEL.classes_[0] == 0:
+        pred_index = 1
+    else:
+        pred_index = 0
+
+    analysis_sel_cols = ANALYSIS_SEL_COLS.copy()

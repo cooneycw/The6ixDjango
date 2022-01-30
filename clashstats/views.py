@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponseNotFound
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm
-from .scoring import get_segment, get_cards, get_clan, auto_pull, mid
+from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm, winDeepForm
+from .scoring import get_segment, get_cards, get_clan, auto_pull, auto_analyze, auto_reco, mid, rowIndex
 from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL
 import pandas as pd
 import numpy as np
@@ -764,7 +764,7 @@ def membrept(request):
             curr_page = max(1, (curr_page - 1))
             request.session['curr_page'] = curr_page
 
-    df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
+    result_df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
 
     if success == 0:
         messages.warning('No ladder games played for this clan member.')
@@ -784,6 +784,7 @@ def membrept(request):
         return render(request, 'clashstats/membrept.html', context)
 
     show_df = True
+    df = result_df.copy()
     df = df.sort_values(by=['home_tag', 'game_dt', 'game_tm'], ascending=[True, False, False]).reset_index()
     df_total = df.groupby('home_tag') \
         .agg({'outcome': 'sum', 'expected_win_ratio': 'sum', 'away_seg': 'count'}).reset_index()
@@ -799,6 +800,10 @@ def membrept(request):
     display_df['win'] = df['outcome'].values
     display_df['exp_win_ratio'] = pd.Series(["{0:.1f}%".format(val * 100)
                                              for val in df['expected_win_ratio']], index=df.index).values
+    display_df['exp_win_ratio'] = display_df.apply(lambda x: f'<a href="{BASE_URL}/clashstats/win_deep/{rowIndex(x)}">{x.exp_win_ratio}</a>', axis=1)
+
+    request.session['deep_dive_games'] = df.to_json()
+
     display_df['time'] = df['game_tm'].values
     display_df['date'] = df['game_dt'].values
 
@@ -839,3 +844,74 @@ def membrept(request):
         'form' : form,
     }
     return render(request, 'clashstats/membrept.html', context)
+
+
+@login_required()
+def win_deep(request, pk):
+    title = 'The6ixClan: Game Statistic Deep Dive'
+    dyn_title = 'Probability Deep Dive'
+    show_df = False
+    results = []
+    try:
+        games = pd.read_json(request.session['deep_dive_games'], dtype=False)
+    except:
+        html = '<a href = "http://the6ixclan.ca"> Return to The6ixclan.ca </a>'
+        return HttpResponseNotFound(f'<h2>Game {pk} cannot be accessed at this time.<h2><br>' + html)
+    if pk > len(games) or pk < 1:
+        html = '<a href = "http://the6ixclan.ca"> Return to The6ixclan.ca </a>'
+        return HttpResponseNotFound(f'<h2>Segment {pk} does not exist.<h2><br>' + html)
+    else:
+        show_df = True
+        results = auto_analyze(games.iloc[[pk - 1]])
+    form = winDeepForm()
+    if request.method == 'POST':
+        form = winDeepForm(data=request.POST)
+        if request.POST.get('Return to Member Report') == 'Return to Member Report':
+            return redirect('clashstats-membrept')
+        elif request.POST.get('Return to Menu') == 'Return to Menu':
+            return redirect('clashstats-menu')
+
+    r1 = results.get("intercept")
+    r2 = r1 * results.get("lseason_trophies_impact")
+    r3 = r1 * (1 + results.get("lseason_trophies_impact")) * results.get("bseason_trophies_impact")
+    r4 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * results.get("exp_trophies_impact")
+    r5 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (1 + results.get("exp_trophies_impact")) * results.get("level_trophies_impact")
+    r6 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (1 + results.get("exp_trophies_impact")) * (1 + results.get("level_trophies_impact")) * results.get("deck_impact")
+    r7 = r1 * (1 + results.get("deck_impact"))
+
+    context = {
+        'title': title,
+        'dyn_title': dyn_title,
+        'player_name': games.loc[(pk-1), 'home_name'],
+        'away_name': games.loc[(pk-1), 'away_name'],
+        'player_tag': mid(games.loc[(pk-1), 'home_tag'], 1, 9).rstrip(),
+        'away_tag': mid(games.loc[(pk-1), 'away_tag'], 1, 9).rstrip(),
+        'row_int': f'Starting estimate (regression intercept):',
+        'intercept': f'{results.get("intercept"):.1%}',
+        'cintercept': f'{r1:.1%}',
+        'row_lsg': f'{games.loc[(pk-1), "home_name"]} Last season gap to 5700',
+        'last_season_gap':  f'{results.get("lseason_trophies_impact"):.1%}',
+        'clsg': f'{r2:.1%}',
+        'row_bsd': f'Best season difference',
+        'best_season_difference': f'{results.get("bseason_trophies_impact"):.1%}',
+        'cbsd': f'{r3:.1%}',
+        'row_ted': f'Tower experience level difference',
+        'tower_experience_difference': f'{results.get("exp_trophies_impact"):.1%}',
+        'cted': f'{r4:.1%}',
+        'row_ced': f'Card experience level difference',
+        'card_experience_difference': f'{results.get("level_trophies_impact"):.1%}',
+        'cced': f'{r5:.1%}',
+        'row_ded': f'Deck advantage (disadvantage)',
+        'deck_experience_difference': f'{results.get("deck_impact"):.1%}',
+        'cded': f'{r6:.1%}',
+        'row_fin': f'Estimated total advantage (disadvantage):',
+        'cfin': f'{results.get("base_est"):.1%}',
+        'row_sup': f'Normalized "deck only" advantage (disadvantage):',
+        'csup': f'{r7:.1%}',
+        'show_df': show_df,
+        'form': form,
+    }
+    return render(request, 'clashstats/win_deep.html', context)
+
+
+

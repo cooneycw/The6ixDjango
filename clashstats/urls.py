@@ -12,4 +12,5 @@ urlpatterns = [
     path('clashstats/clanrept/', views.clanrept, name='clashstats-clanrept'),
     path('clashstats/membslct/', views.membslct, name='clashstats-membslct'),
     path('clashstats/membrept/', views.membrept, name='clashstats-membrept'),
+    path('clashstats/win_deep/<int:pk>/', views.win_deep, name='clashstats-win_deep'),
     ]

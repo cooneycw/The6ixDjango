@@ -81,3 +81,8 @@ class memberSlctForm(forms.Form):
 class memberReptForm(forms.Form):
     def __init__(self,  *args, **kwargs):
         super(memberReptForm, self).__init__(*args, **kwargs)
+
+
+class winDeepForm(forms.Form):
+    def __init__(self,  *args, **kwargs):
+        super(winDeepForm, self).__init__(*args, **kwargs)
