@@ -870,6 +870,9 @@ def win_deep(request, pk):
             return redirect('clashstats-membrept')
         elif request.POST.get('Return to Menu') == 'Return to Menu':
             return redirect('clashstats-menu')
+        elif request.POST.get('Perform Card Analysis') == 'Perform Card Analysis':
+            deck_improv = auto_reco(games.iloc[[pk - 1]])
+            show_df = True
 
     r1 = results.get("intercept")
     r2 = r1 * results.get("lseason_trophies_impact")

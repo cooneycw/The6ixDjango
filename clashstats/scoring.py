@@ -3,9 +3,11 @@ from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP
     ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
+from math import comb
 import requests
 import datetime
 import copy
+import itertools
 import time
 import pickle
 import urllib.request
@@ -844,4 +846,104 @@ def auto_reco(input_df):
     else:
         pred_index = 0
 
+    cards = get_cards()
+    cards.sort_values(by=['card'], inplace=True)
+    elixr = cards['elixr']
+    home_cards = pd.get_dummies(cards['card']).drop(range(cards.shape[0]))
+    home_card_list = list(home_cards.columns)
+    away_card_list = [('a_' + card) for card in home_card_list]
+    card_list_compare = [card.replace('_', ' ') for card in home_card_list]
+    # adjustment for Pekka / mini-Pekka
+    card_list_compare[74] = 'P.E.K.K.A'  # 106 amend if new cards inserted
+    card_list_compare[66] = 'Mini P.E.K.K.A'
+    elixr_for_mult = elixr.values
+
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
+
+    all_cards = home_card_list.copy()
+    all_cards.extend(away_card_list)
+    combin_base_df = input_df.loc[:, all_cards]
+    base_df = input_df.loc[:, analysis_sel_cols]
+    base_est = LR_MODEL.predict_proba(base_df)[0, pred_index]
+
+    player_cards = combin_base_df.T.squeeze().to_numpy().nonzero()
+    home = player_cards[0][range(0, 8)]
+    away = player_cards[0][range(8, 16)]
+    card_cnt = int((home_cards.shape)[1])
+
+    rem_list_01, add_list_01, new_decks_01 = modify_decks(home, away, card_cnt, 1)
+    rem_list_02, add_list_02, new_decks_02 = modify_decks(home, away, card_cnt, 2)
+
+    get_elixr() # add elixr to deck
+
+    intercept_df = base_df.copy()
+    for col in intercept_df.columns:
+        intercept_df[col].values[:] = 0
+    intercept = LR_MODEL.predict_proba(intercept_df)[0, pred_index]
+
+    troph_cols = [item for item in analysis_sel_cols if "trophs" in item]
+    if len(troph_cols) > 0:
+        troph_df = base_df.copy()
+        troph_df.drop(troph_cols, axis=1, inplace=True)
+        troph_df['home_pb_lseason'] = 5700
+        _, troph_df = add_trophs(troph_df, analysis_sel_cols)
+        lseason_trophies_impact = ((LR_MODEL.predict_proba(troph_df.loc[:, analysis_sel_cols])[0, pred_index]) / base_est) - 1
+    else:
+        lseason_trophies_impact = 0
+
+    btroph_df = base_df.copy()
+    btroph_df.loc[:, 'net_pb_bseason'] = 0
+    bseason_trophies_impact = (base_est / (LR_MODEL.predict_proba(btroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+
+    etroph_df = base_df.copy()
+    etroph_df.loc[:, 'net_exp_level'] = 0
+    exp_trophies_impact = (base_est / (LR_MODEL.predict_proba(etroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+
+    ltroph_df = base_df.copy()
+    ltroph_df.loc[:, 'net_level_gap'] = 0
+    level_trophies_impact = (base_est / (LR_MODEL.predict_proba(ltroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+
+    deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (1 + exp_trophies_impact) / (1+level_trophies_impact) - 1
+
+    norm_est = (1 + deck_impact) * intercept
+
+    ## create combinations by removing single cards
+    cwc = 0
+    # _, clan_df_v2 = add_trophs(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_segments_home(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_segments_away(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_elixir_home(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = add_elixir_away(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = code_features(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = code_away_features(clan_df_v2, analysis_sel_cols)
+    # _, clan_df_v2 = code_home_features(clan_df_v2, analysis_sel_cols)
+
+
+
+
+    ret_dict = {
+        'cwc': 0,
+    }
+    return ret_dict
+
+
+def modify_decks(home, away, card_cnt, n):
+    rem_list = list(itertools.combinations(home, n))
+    remove_iters = len(rem_list)
+
+    add_cards = [x for x in range(1, (1 + card_cnt)) if x not in home]
+    add_list = list(itertools.combinations(add_cards, n))
+    add_iters = len(add_list)
+
+    new_decks = np.zeros([(remove_iters * add_iters), 2 * (card_cnt+2)])
+    i = 0
+    while i < remove_iters:
+        j = 0
+        short_home = np.append([x for x in home if x not in rem_list[i]], away)
+        while j < add_iters:
+            longer_home = np.append(short_home, add_list[j])
+            new_decks[((i * add_iters) + j), longer_home - 1] = 1
+            j += 1
+        i += 1
+
+    return rem_list, add_list, new_decks
