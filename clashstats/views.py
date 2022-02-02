@@ -872,7 +872,90 @@ def win_deep(request, pk):
             return redirect('clashstats-menu')
         elif request.POST.get('Perform Card Analysis') == 'Perform Card Analysis':
             deck_improv = auto_reco(games.iloc[[pk - 1]])
+            home_card_list = deck_improv.get('home_card_list')
+            single_only_len = deck_improv.get('len_first_list')
+            double_only_len = deck_improv.get('len_full_list') - single_only_len
+            single_probs = deck_improv.get('new_ests')[range(0, single_only_len)]
+            single_top_10 = np.argsort(single_probs)[::-1][range(0, 10)]
+            single_rem_add = deck_improv.get('explan_ind')[0:single_only_len]
+            single_rem = [home_card_list[single_rem_add[rem_item][0][0][0]] for rem_item in single_top_10]
+            single_add = [home_card_list[single_rem_add[rem_item][1][0][0]] for rem_item in single_top_10]
+
+            double_probs = deck_improv.get('new_ests')[range(single_only_len, (single_only_len+double_only_len))]
+            double_top_40 = np.argsort(double_probs)[::-1][range(0, 40)]
+            double_rem_add = deck_improv.get('explan_ind')[single_only_len:(single_only_len+double_only_len)]
+            double_rem_one = [home_card_list[double_rem_add[rem_item][0][0][0]] for rem_item in double_top_40]
+            double_rem_two = [home_card_list[double_rem_add[rem_item][0][0][1]] for rem_item in double_top_40]
+            double_add_one = [home_card_list[double_rem_add[rem_item][1][0][0]] for rem_item in double_top_40]
+            double_add_two = [home_card_list[double_rem_add[rem_item][1][0][1]] for rem_item in double_top_40]
+
+            single_df = pd.DataFrame(single_rem, columns=['Remove Card'])
+            single_df['Add Card'] = single_add
+            single_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(single_probs[val] * 100)
+                                                     for val in single_top_10])
+
+            singleStats = single_df.to_html(index=False, classes='table table-striped table-hover',
+                                             header="true", justify="center", escape=False)
+
+            double_df = pd.DataFrame(double_rem_one, columns=['Remove Card One'])
+            double_df['Remove Card Two'] = double_rem_two
+            double_df['Add Card One'] = double_add_one
+            double_df['Add Card Two'] = double_add_two
+            double_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(double_probs[val] * 100)
+                                                            for val in double_top_40])
+
+            doubleStats = double_df.to_html(index=False, classes='table table-striped table-hover',
+                                            header="true", justify="center", escape=False)
+
             show_df = True
+
+            r1 = results.get("intercept")
+            r2 = r1 * results.get("lseason_trophies_impact")
+            r3 = r1 * (1 + results.get("lseason_trophies_impact")) * results.get("bseason_trophies_impact")
+            r4 = r1 * (1 + results.get("lseason_trophies_impact")) * (
+                        1 + results.get("bseason_trophies_impact")) * results.get("exp_trophies_impact")
+            r5 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (
+                        1 + results.get("exp_trophies_impact")) * results.get("level_trophies_impact")
+            r6 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (
+                        1 + results.get("exp_trophies_impact")) * (
+                             1 + results.get("level_trophies_impact")) * results.get("deck_impact")
+            r7 = r1 * (1 + results.get("deck_impact"))
+
+            context = {
+                'title': title,
+                'dyn_title': dyn_title,
+                'player_name': games.loc[(pk - 1), 'home_name'],
+                'away_name': games.loc[(pk - 1), 'away_name'],
+                'player_tag': mid(games.loc[(pk - 1), 'home_tag'], 1, 9).rstrip(),
+                'away_tag': mid(games.loc[(pk - 1), 'away_tag'], 1, 9).rstrip(),
+                'row_int': f'Starting estimate (regression intercept):',
+                'intercept': f'{results.get("intercept"):.1%}',
+                'cintercept': f'{r1:.1%}',
+                'row_lsg': f'{games.loc[(pk - 1), "home_name"]} last season gap to 5700',
+                'last_season_gap': f'{results.get("lseason_trophies_impact"):.1%}',
+                'clsg': f'{r2:.1%}',
+                'row_bsd': f'Best season difference',
+                'best_season_difference': f'{results.get("bseason_trophies_impact"):.1%}',
+                'cbsd': f'{r3:.1%}',
+                'row_ted': f'Tower experience level difference',
+                'tower_experience_difference': f'{results.get("exp_trophies_impact"):.1%}',
+                'cted': f'{r4:.1%}',
+                'row_ced': f'Card experience level difference',
+                'card_experience_difference': f'{results.get("level_trophies_impact"):.1%}',
+                'cced': f'{r5:.1%}',
+                'row_ded': f'Deck advantage / disadvantage',
+                'deck_experience_difference': f'{results.get("deck_impact"):.1%}',
+                'cded': f'{r6:.1%}',
+                'row_fin': f'Estimated total advantage / disadvantage:',
+                'cfin': f'{results.get("base_est"):.1%}',
+                'row_sup': f'Normalized "deck only" advantage / disadvantage:',
+                'csup': f'{r7:.1%}',
+                'show_df': show_df,
+                'singleStats': singleStats,
+                'doubleStats': doubleStats,
+                'form': form,
+            }
+            return render(request, 'clashstats/win_deep.html', context)
 
     r1 = results.get("intercept")
     r2 = r1 * results.get("lseason_trophies_impact")

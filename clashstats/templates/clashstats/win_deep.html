@@ -93,8 +93,13 @@
             </div>
             {% if show_df == True %}
                 <table>
-
+                {{ singleStats | safe }}
                 </table>
+                <table>
+                {{ doubleStats | safe }}
+                </table>
+
             {% endif %}
         </div>
+
 {% endblock content %}

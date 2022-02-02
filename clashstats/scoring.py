@@ -63,6 +63,16 @@ def get_elixr(deck_in):
     return deck_in
 
 
+def get_elixr_away(deck_in):
+    cards_df = get_cards()
+    cards_df.sort_values(by=['card'], inplace=True)
+    cards_df.set_index('card')
+    cards_df.loc[:, 'card'] = 'a_' + cards_df['card'].values
+    elixr = (deck_in[cards_df.loc[:, 'card']].T.mul(cards_df.loc[:, 'elixr'].tolist(), axis=0)).T
+    deck_in.loc[:, 'away_elixr'] = (elixr.sum(axis=1))/8
+    return deck_in
+
+
 def get_cards():
     cards_name = STAT_FILES / 'pickles/cards'
     cards = pickle.load(open(cards_name, "rb"))
@@ -871,10 +881,27 @@ def auto_reco(input_df):
     away = player_cards[0][range(8, 16)]
     card_cnt = int((home_cards.shape)[1])
 
-    rem_list_01, add_list_01, new_decks_01 = modify_decks(home, away, card_cnt, 1)
-    rem_list_02, add_list_02, new_decks_02 = modify_decks(home, away, card_cnt, 2)
+    rem_list_01, add_list_01, explan_ind_01, new_decks_01 = modify_decks(home, away, card_cnt, 1)
+    rem_list_02, add_list_02, explan_ind_02, new_decks_02 = modify_decks(home, away, card_cnt, 2)
 
-    get_elixr() # add elixr to deck
+    explan_ind = explan_ind_01.copy()
+    explan_ind.extend(explan_ind_02)
+    new_df = get_elixr(pd.DataFrame(np.concatenate([new_decks_01, new_decks_02], axis=0), columns=all_cards, dtype='int16'))
+    new_df = get_elixr_away(new_df)
+    new_df = get_segment(new_df)
+    new_df = get_segment_away(new_df)
+    new_df['home_pb_lseason'] = 5700
+    new_df['net_pb_bseason'] = 0
+    new_df['net_exp_level'] = 0
+    new_df['net_level_gap'] = 0
+    _, new_df = add_trophs(new_df, analysis_sel_cols)
+    _, new_df = add_segments_home(new_df, analysis_sel_cols)
+    _, new_df = add_segments_away(new_df, analysis_sel_cols)
+    _, new_df = add_elixir_home(new_df, analysis_sel_cols)
+    _, new_df = add_elixir_away(new_df, analysis_sel_cols)
+    _, new_df = code_features(new_df, analysis_sel_cols)
+    _, new_df = code_away_features(new_df, analysis_sel_cols)
+    _, new_df = code_home_features(new_df, analysis_sel_cols)
 
     intercept_df = base_df.copy()
     for col in intercept_df.columns:
@@ -907,22 +934,16 @@ def auto_reco(input_df):
 
     norm_est = (1 + deck_impact) * intercept
 
+    new_ests = (LR_MODEL.predict_proba(new_df.loc[:, analysis_sel_cols])[:, pred_index])
     ## create combinations by removing single cards
-    cwc = 0
-    # _, clan_df_v2 = add_trophs(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = add_segments_home(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = add_segments_away(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = add_elixir_home(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = add_elixir_away(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = code_features(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = code_away_features(clan_df_v2, analysis_sel_cols)
-    # _, clan_df_v2 = code_home_features(clan_df_v2, analysis_sel_cols)
-
-
-
 
     ret_dict = {
-        'cwc': 0,
+        'norm_est': norm_est,
+        'new_ests': new_ests,
+        'len_first_list': len(explan_ind_01),
+        'len_full_list': len(explan_ind),
+        'home_card_list': home_card_list,
+        'explan_ind': explan_ind,
     }
     return ret_dict
 
@@ -935,15 +956,34 @@ def modify_decks(home, away, card_cnt, n):
     add_list = list(itertools.combinations(add_cards, n))
     add_iters = len(add_list)
 
-    new_decks = np.zeros([(remove_iters * add_iters), 2 * (card_cnt+2)])
+    new_decks = np.zeros([(remove_iters * add_iters), (2 * card_cnt)])
+    explan_list = []
     i = 0
     while i < remove_iters:
         j = 0
+        rem = []
         short_home = np.append([x for x in home if x not in rem_list[i]], away)
+        rem.append(rem_list[i])
         while j < add_iters:
+            add = []
             longer_home = np.append(short_home, add_list[j])
-            new_decks[((i * add_iters) + j), longer_home - 1] = 1
+            new_decks[((i * add_iters) + j), longer_home] = 1
+            add.append(add_list[j])
+            explan_list.append([rem, add])
             j += 1
         i += 1
 
-    return rem_list, add_list, new_decks
+    return rem_list, add_list, explan_list, new_decks
+
+
+def decode(val, dims):
+    # val is scalar
+    # dims is numpy array
+    maxi = len(dims)
+    indices = np.zeros(i)
+    rem = 0
+    while i > 0:
+        strides = np.product(dims[range(i, len(dims))])
+        indices[i] = int(val/strides)
+        i -= 1
+    return indices
