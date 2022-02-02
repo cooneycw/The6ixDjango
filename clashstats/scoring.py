@@ -974,16 +974,3 @@ def modify_decks(home, away, card_cnt, n):
         i += 1
 
     return rem_list, add_list, explan_list, new_decks
-
-
-def decode(val, dims):
-    # val is scalar
-    # dims is numpy array
-    maxi = len(dims)
-    indices = np.zeros(i)
-    rem = 0
-    while i > 0:
-        strides = np.product(dims[range(i, len(dims))])
-        indices[i] = int(val/strides)
-        i -= 1
-    return indices
