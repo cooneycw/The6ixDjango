@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    command: gunicorn The6ix.wsgi:application --bind 0.0.0.0:8000 --timeout 600 --workers=3
+    command: gunicorn The6ix.wsgi:application --bind 0.0.0.0:8000 --timeout 600 --workers=3 --worker-class 'gevent'
     volumes:
       - static_volume:/home/app/web/staticfiles
       - media_volume:/home/app/web/mediafiles
