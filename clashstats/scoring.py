@@ -1,6 +1,6 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
     CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
-    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL, REDIS_INSTANCE
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 from math import comb
@@ -850,7 +850,11 @@ def auto_analyze(input_df):
     return ret_dict
 
 
-def auto_reco(input_df):
+def auto_reco(input_df, redis_channel):
+    ret_dict = None
+    redis_key = redis_channel + 'ret_dict'
+    REDIS_INSTANCE.set(redis_channel + 'reco_data_ready', 'no'.encode('utf-8'))
+    REDIS_INSTANCE.set(redis_key, pickle.dumps(ret_dict))
     if LR_MODEL.classes_[0] == 0:
         pred_index = 1
     else:
@@ -937,6 +941,12 @@ def auto_reco(input_df):
     new_ests = (LR_MODEL.predict_proba(new_df.loc[:, analysis_sel_cols])[:, pred_index])
     ## create combinations by removing single cards
 
+    # write to redis
+    # pickled_object = pickle.dumps(obj)
+    # r.set('some_key', pickled_object)
+    # unpacked_object = pickle.loads(r.get('some_key'))
+
+
     ret_dict = {
         'norm_est': norm_est,
         'new_ests': new_ests,
@@ -945,7 +955,10 @@ def auto_reco(input_df):
         'home_card_list': home_card_list,
         'explan_ind': explan_ind,
     }
-    return ret_dict
+
+    REDIS_INSTANCE.set(redis_key, pickle.dumps(ret_dict))
+    REDIS_INSTANCE.set(redis_channel + 'reco_data_ready', 'yes'.encode('utf-8'))
+    return
 
 
 def modify_decks(home, away, card_cnt, n):

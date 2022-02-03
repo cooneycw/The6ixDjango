@@ -1,13 +1,15 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponseNotFound
+from django.http import HttpResponseNotFound, JsonResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm, winDeepForm
 from .scoring import get_segment, get_cards, get_clan, auto_pull, auto_analyze, auto_reco, mid, rowIndex
-from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL
+from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL, REDIS_INSTANCE
+from multiprocessing.pool import ThreadPool
 import pandas as pd
 import numpy as np
 import pickle
+import datetime
 import math
 from scipy.stats import pearsonr
 
@@ -851,6 +853,7 @@ def win_deep(request, pk):
     title = 'The6ixClan: Game Statistic Deep Dive'
     dyn_title = 'Probability Deep Dive'
     show_df = False
+    request.session['win_deep_show_df'] = show_df
     results = []
     try:
         games = pd.read_json(request.session['deep_dive_games'], dtype=False)
@@ -861,7 +864,6 @@ def win_deep(request, pk):
         html = '<a href = "http://the6ixclan.ca"> Return to The6ixclan.ca </a>'
         return HttpResponseNotFound(f'<h2>Segment {pk} does not exist.<h2><br>' + html)
     else:
-        show_df = True
         results = auto_analyze(games.iloc[[pk - 1]])
     form = winDeepForm()
     if request.method == 'POST':
@@ -871,54 +873,26 @@ def win_deep(request, pk):
         elif request.POST.get('Return to Menu') == 'Return to Menu':
             return redirect('clashstats-menu')
         elif request.POST.get('Perform Card Analysis') == 'Perform Card Analysis':
-            deck_improv = auto_reco(games.iloc[[pk - 1]])
-            home_card_list = deck_improv.get('home_card_list')
-            single_only_len = deck_improv.get('len_first_list')
-            double_only_len = deck_improv.get('len_full_list') - single_only_len
-            single_probs = deck_improv.get('new_ests')[range(0, single_only_len)]
-            single_top_10 = np.argsort(single_probs)[::-1][range(0, 10)]
-            single_rem_add = deck_improv.get('explan_ind')[0:single_only_len]
-            single_rem = [home_card_list[single_rem_add[rem_item][0][0][0]] for rem_item in single_top_10]
-            single_add = [home_card_list[single_rem_add[rem_item][1][0][0]] for rem_item in single_top_10]
+            channel = str(games['home_tag'][0])
+            date_time = datetime.datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S")
+            REDIS_INSTANCE.set(channel, date_time)
+            pool = ThreadPool(processes=1)
 
-            double_probs = deck_improv.get('new_ests')[range(single_only_len, (single_only_len+double_only_len))]
-            double_top_40 = np.argsort(double_probs)[::-1][range(0, 40)]
-            double_rem_add = deck_improv.get('explan_ind')[single_only_len:(single_only_len+double_only_len)]
-            double_rem_one = [home_card_list[double_rem_add[rem_item][0][0][0]] for rem_item in double_top_40]
-            double_rem_two = [home_card_list[double_rem_add[rem_item][0][0][1]] for rem_item in double_top_40]
-            double_add_one = [home_card_list[double_rem_add[rem_item][1][0][0]] for rem_item in double_top_40]
-            double_add_two = [home_card_list[double_rem_add[rem_item][1][0][1]] for rem_item in double_top_40]
-
-            single_df = pd.DataFrame(single_rem, columns=['Remove Card'])
-            single_df['Add Card'] = single_add
-            single_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(single_probs[val] * 100)
-                                                     for val in single_top_10])
-
-            singleStats = single_df.to_html(index=False, classes='table table-striped table-hover',
-                                             header="true", justify="center", escape=False)
-
-            double_df = pd.DataFrame(double_rem_one, columns=['Remove Card One'])
-            double_df['Remove Card Two'] = double_rem_two
-            double_df['Add Card One'] = double_add_one
-            double_df['Add Card Two'] = double_add_two
-            double_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(double_probs[val] * 100)
-                                                            for val in double_top_40])
-
-            doubleStats = double_df.to_html(index=False, classes='table table-striped table-hover',
-                                            header="true", justify="center", escape=False)
-
+            async_result = pool.apply_async(auto_reco, args=(games.iloc[[pk - 1]], channel,))  # tuple of args for foo
             show_df = True
+            request.session['win_deep_show_df'] = show_df
+            request.session['win_deep_redis_channel'] = channel
 
             r1 = results.get("intercept")
             r2 = r1 * results.get("lseason_trophies_impact")
             r3 = r1 * (1 + results.get("lseason_trophies_impact")) * results.get("bseason_trophies_impact")
             r4 = r1 * (1 + results.get("lseason_trophies_impact")) * (
-                        1 + results.get("bseason_trophies_impact")) * results.get("exp_trophies_impact")
+                    1 + results.get("bseason_trophies_impact")) * results.get("exp_trophies_impact")
             r5 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (
-                        1 + results.get("exp_trophies_impact")) * results.get("level_trophies_impact")
+                    1 + results.get("exp_trophies_impact")) * results.get("level_trophies_impact")
             r6 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (
-                        1 + results.get("exp_trophies_impact")) * (
-                             1 + results.get("level_trophies_impact")) * results.get("deck_impact")
+                    1 + results.get("exp_trophies_impact")) * (
+                         1 + results.get("level_trophies_impact")) * results.get("deck_impact")
             r7 = r1 * (1 + results.get("deck_impact"))
 
             context = {
@@ -951,11 +925,10 @@ def win_deep(request, pk):
                 'row_sup': f'Normalized "deck only" advantage / disadvantage:',
                 'csup': f'{r7:.1%}',
                 'show_df': show_df,
-                'singleStats': singleStats,
-                'doubleStats': doubleStats,
                 'form': form,
             }
             return render(request, 'clashstats/win_deep.html', context)
+
 
     r1 = results.get("intercept")
     r2 = r1 * results.get("lseason_trophies_impact")
@@ -999,5 +972,92 @@ def win_deep(request, pk):
     }
     return render(request, 'clashstats/win_deep.html', context)
 
+
+def is_ajax(request):
+    return request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest'
+
+
+@login_required()
+def retrieveAsync(request):
+    if is_ajax(request=request) and request.method == "GET":
+        redisChannel = request.session['win_deep_redis_channel']
+        show_df = request.session['win_deep_show_df']
+        msgs = ["Loading data...",
+                "About 10 more seconds..(I think)!",
+                "Bored yet?  It's coming..I promise!'",
+                "How about those Leafs, eh?  Still working here...",
+                "Almost there...don't go..you're going to like this!",
+                "Wait..I have to go and see..but I think I heard something..."
+                ]
+
+        if show_df == False:
+            REDIS_INSTANCE.set(redisChannel + 'cycle_counts', 0)
+            ret_val = {
+                'do_what': 'nothing',
+                'msg': [],
+            }
+            # user has not requested the dataframe info yet...do nothing
+            return JsonResponse(ret_val, status=200)
+        elif show_df == True:
+            data_ready = (REDIS_INSTANCE.get(redisChannel + 'reco_data_ready').decode('utf-8') == 'yes')
+            cnt = int(REDIS_INSTANCE.get(redisChannel + 'cycle_counts').decode('utf-8'))
+            REDIS_INSTANCE.set(redisChannel + 'cycle_counts', (cnt+1))
+            if data_ready is False:
+                msg = msgs[cnt % len(msgs)]
+                ret_val = {
+                    'do_what': 'wait',
+                    'msg': msg,
+                }
+                return JsonResponse(ret_val, status=200)
+            elif data_ready is True:
+                deck_improv = pickle.loads(REDIS_INSTANCE.get(redisChannel + 'ret_dict'))
+
+                try:
+                    home_card_list = deck_improv.get('home_card_list')
+                except:
+                    print(f'type: {type(deck_improv)} ')
+                single_only_len = deck_improv.get('len_first_list')
+                double_only_len = deck_improv.get('len_full_list') - single_only_len
+                single_probs = deck_improv.get('new_ests')[range(0, single_only_len)]
+                single_top_10 = np.argsort(single_probs)[::-1][range(0, 10)]
+                single_rem_add = deck_improv.get('explan_ind')[0:single_only_len]
+                single_rem = [home_card_list[-1+single_rem_add[rem_item][0][0][0]] for rem_item in single_top_10]
+                single_add = [home_card_list[-1+single_rem_add[rem_item][1][0][0]] for rem_item in single_top_10]
+
+                double_probs = deck_improv.get('new_ests')[range(single_only_len, (single_only_len + double_only_len))]
+                double_top_40 = np.argsort(double_probs)[::-1][range(0, 40)]
+                double_rem_add = deck_improv.get('explan_ind')[single_only_len:(single_only_len + double_only_len)]
+                double_rem_one = [home_card_list[-1+double_rem_add[rem_item][0][0][0]] for rem_item in double_top_40]
+                double_rem_two = [home_card_list[-1+double_rem_add[rem_item][0][0][1]] for rem_item in double_top_40]
+                double_add_one = [home_card_list[-1+double_rem_add[rem_item][1][0][0]] for rem_item in double_top_40]
+                double_add_two = [home_card_list[-1+double_rem_add[rem_item][1][0][1]] for rem_item in double_top_40]
+
+                single_df = pd.DataFrame(single_rem, columns=['Remove Card'])
+                single_df['Add Card'] = single_add
+                single_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(single_probs[val] * 100)
+                                                                for val in single_top_10])
+
+                singleStats = single_df.to_html(index=False, classes='table table-striped table-hover',
+                                                header="true", justify="center", escape=False)
+
+                double_df = pd.DataFrame(double_rem_one, columns=['Remove Card One'])
+                double_df['Remove Card Two'] = double_rem_two
+                double_df['Add Card One'] = double_add_one
+                double_df['Add Card Two'] = double_add_two
+                double_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(double_probs[val] * 100)
+                                                                for val in double_top_40])
+
+                doubleStats = double_df.to_html(index=False, classes='table table-striped table-hover',
+                                                header="true", justify="center", escape=False)
+
+                msg = "Your data is ready now..."
+                ret_val = {
+                    'do_what': 'complete',
+                    'msg': msg,
+                    'singleS': singleStats,
+                    'doubleS': doubleStats,
+                }
+                return JsonResponse(ret_val, status=200)
+    return JsonResponse({}, status=400)
 
 

@@ -1,11 +1,17 @@
 version: '3'
 
 services:
+  redis:
+    image: redis:latest
+    networks:
+      - dbnet
+    ports:
+      - '6379:6379'
   web:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    command: gunicorn The6ix.wsgi:application --bind 0.0.0.0:8000 --timeout 600 --workers=3 --worker-class 'gevent'
+    command: gunicorn The6ix.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - static_volume:/home/app/web/staticfiles
       - media_volume:/home/app/web/mediafiles

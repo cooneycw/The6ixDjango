@@ -19,7 +19,7 @@
                                 <input class="btn btn-light action-button" type="Submit" name="Perform Card Analysis" value="Perform Card Analysis" style="background: rgb(94,181,246);"></input>
                             </div>
                             <div class="span-2 mt-2 mb-2" style="width: 25%">
-                                <input class="btn btn-light action-button" type="Submit" name="Return" value="Return to Menu" style="background: rgb(255, 93, 5);"></input>
+                                <input class="btn btn-light action-button" type="Submit" name="Return to Menu" value="Return to Menu" style="background: rgb(255, 93, 5);"></input>
                             </div>
 
                             </form>
@@ -91,15 +91,62 @@
                     </div>
                 </div>
             </div>
-            {% if show_df == True %}
-                <table>
-                {{ singleStats | safe }}
+        {% block javascript %}
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script type="text/javascript">
+        $(document).ready(function call_api () {
+            $.ajax({
+            url: '/clashstats/win_deep/get_ajax/',
+            type: 'get',
+            headers: { "X-CSRFToken": csrftoken },
+
+            success: function polling (ret_val) {
+                if (ret_val.do_what == 'nothing') {
+                    console.log('Do nothing')
+                } else if (ret_val.do_what == 'wait') {
+                    $("#message_loading_space").show();
+                    $("#message_loading_space").html(ret_val.msg);
+                    setTimeout(call_api, 3000); // wait 3 seconds than call ajax request again
+                } else if (ret_val.do_what == 'complete') {
+                    console.log('complete')
+                    $("#message_loading_space").hide();
+                    $("#singleS").html(ret_val.singleS);
+                    $("#doubleS").html(ret_val.doubleS);
+                }
+                }
+            })
+
+            });
+
+            function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = jQuery.trim(cookies[i]);
+                // Does this cookie string begin with the name we want?
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+            }
+            return cookieValue;
+            }
+            var csrftoken = getCookie('csrftoken');
+        </script>
+        {% endblock javascript %}
+                <div id="message_loading_space" style="text-align: left">
+                </div>
+                <table id="singleS">
+
                 </table>
-                <table>
-                {{ doubleStats | safe }}
+                <hr/>
+                <table id="doubleS">
+
                 </table>
 
-            {% endif %}
+
         </div>
 
 {% endblock content %}

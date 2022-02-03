@@ -15,6 +15,7 @@ from .secrets import get_secrets
 import ast
 import socket
 import os
+import redis
 from joblib import load
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -102,12 +103,17 @@ WSGI_APPLICATION = 'The6ix.wsgi.application'
 POSTGRES_PORT = secret_dict['POSTGRES_PORT']
 POSTGRES_HOST = secret_dict['POSTGRES_HOST']
 CLASH_API = secret_dict['API']
+REDIS_PORT = secret_dict['REDIS_PORT']
+REDIS_HOST = secret_dict['REDIS_HOST']
 
 if DEBUG==True:
     POSTGRES_PORT = secret_dict['POSTGRES_PORT_DEV']
     POSTGRES_HOST = secret_dict['POSTGRES_HOST_DEV']
     CLASH_API = secret_dict['API_DEV']
+    REDIS_HOST = secret_dict['REDIS_HOST_DEV']
 
+REDIS_INSTANCE = redis.StrictRedis(host=REDIS_HOST,
+                                  port=REDIS_PORT, db=0)
 
 DATABASES = {
     'default': {
