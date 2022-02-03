@@ -1,12 +1,6 @@
 version: '3'
 
 services:
-  redis:
-    image: redis:latest
-    networks:
-      - dbnet
-    ports:
-      - '6379:6379'
   web:
     build:
       context: .
@@ -23,6 +17,13 @@ services:
     environment:
       aws_access_key_id: ${aws_access_key_id}
       aws_secret_access_key: ${aws_secret_access_key}
+
+  redis:
+    image: redis:latest
+    networks:
+      - dbnet
+    ports:
+      - 6379:6379
 
   nginx:
     build: ./nginx
