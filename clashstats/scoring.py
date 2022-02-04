@@ -564,7 +564,7 @@ def get_segment(deck_in):
 
 
     df_out['home_seg'] = df_out['home_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
-    df_out['home_seg'] = df_out['home_seg'].astype(pd.Int32Dtype())
+    df_out['home_seg'] = df_out['home_seg'].astype(pd.Int16Dtype())
     return df_out
 
 
@@ -597,7 +597,7 @@ def get_segment_away(deck_in):
     df_out.loc[:, 'away_seg'] = segs
 
     df_out['away_seg'] = df_out['away_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
-    df_out['away_seg'] = df_out['away_seg'].astype(pd.Int32Dtype())
+    df_out['away_seg'] = df_out['away_seg'].astype(pd.Int16Dtype())
     return df_out
 
 
@@ -612,9 +612,9 @@ def add_trophs(analyze_df, analysis_sel_cols):
         lower = LBOUNDS[i - 1]
         upper = UBOUNDS[i - 1]
         if i == max_trophs:
-            analyze_df[col] = ((trophs >= lower).astype(int))
+            analyze_df[col] = ((trophs >= lower).astype('uint8'))
         else:
-            analyze_df[col] = (((trophs < upper) * (trophs >= lower)).astype(int))
+            analyze_df[col] = (((trophs < upper) * (trophs >= lower)).astype('uint8'))
         new_cols.append(col)
         i += 1
 
@@ -684,9 +684,9 @@ def add_elixir_home(analyze_df, analysis_sel_cols):
         lower = lbounds[i - 1]
         upper = ubounds[i - 1]
         if i == max_elixir:
-            analyze_df = pd.concat([analyze_df, pd.DataFrame(((elixir >= lower).astype(int)), columns=[col])], axis=1)
+            analyze_df = pd.concat([analyze_df, pd.DataFrame(((elixir >= lower).astype('uint8')), columns=[col])], axis=1)
         else:
-            analyze_df = pd.concat([analyze_df, pd.DataFrame((((elixir < upper) * (elixir >= lower)).astype(int)), columns=[col])], axis=1)
+            analyze_df = pd.concat([analyze_df, pd.DataFrame((((elixir < upper) * (elixir >= lower)).astype('uint8')), columns=[col])], axis=1)
         new_cols.append(col)
         i += 1
 
@@ -707,9 +707,9 @@ def add_elixir_away(analyze_df, analysis_sel_cols):
         lower = lbounds[i - 1]
         upper = ubounds[i - 1]
         if i == max_elixir:
-            analyze_df = pd.concat([analyze_df, pd.DataFrame(((elixir >= lower).astype(int)), columns=[col])], axis=1)
+            analyze_df = pd.concat([analyze_df, pd.DataFrame(((elixir >= lower).astype('uint8')), columns=[col])], axis=1)
         else:
-            analyze_df = pd.concat([analyze_df, pd.DataFrame((((elixir < upper) * (elixir >= lower)).astype(int)), columns=[col])], axis=1)
+            analyze_df = pd.concat([analyze_df, pd.DataFrame((((elixir < upper) * (elixir >= lower)).astype('uint8')), columns=[col])], axis=1)
         new_cols.append(col)
         i += 1
 
@@ -736,7 +736,7 @@ def code_features(input_df, analysis_sel_cols):
                 match_ind = feature_list.index(test_value)
                 new_indicators[:, match_ind] = home_indicators[:, i] * away_indicators[:, j]
 
-    temp_df = pd.DataFrame(new_indicators, columns=feature_list)
+    temp_df = pd.DataFrame(new_indicators, columns=feature_list, dtype='uint8')
     input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
     return analysis_sel_cols, input_df
 
@@ -759,7 +759,7 @@ def code_home_features(input_df, analysis_sel_cols):
                 match_ind = feature_list.index(test_value)
                 new_indicators[:, match_ind] = home_indicators[:, i] * home_indicators[:, j]
 
-    temp_df = pd.DataFrame(new_indicators, columns=feature_list)
+    temp_df = pd.DataFrame(new_indicators, columns=feature_list, dtype='uint8')
     input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
 
     return analysis_sel_cols, input_df
@@ -783,7 +783,7 @@ def code_away_features(input_df, analysis_sel_cols):
                 match_ind = feature_list.index(test_value)
                 new_indicators[:, match_ind] = away_indicators[:, i] * away_indicators[:, j]
 
-    temp_df = pd.DataFrame(new_indicators, columns=feature_list)
+    temp_df = pd.DataFrame(new_indicators, columns=feature_list, dtype='uint8')
     input_df = pd.concat([input_df.reset_index(drop=True), temp_df.reset_index(drop=True)], axis=1)
     return analysis_sel_cols, input_df
 
@@ -871,7 +871,6 @@ def auto_reco(input_df, redis_channel):
     # adjustment for Pekka / mini-Pekka
     card_list_compare[74] = 'P.E.K.K.A'  # 106 amend if new cards inserted
     card_list_compare[66] = 'Mini P.E.K.K.A'
-    elixr_for_mult = elixr.values
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
 
@@ -891,11 +890,11 @@ def auto_reco(input_df, redis_channel):
 
     explan_ind = explan_ind_01.copy()
     explan_ind.extend(explan_ind_02)
-    get_var_sizes(list(locals().items()))
+    #get_var_sizes(list(locals().items()))
     new_df = get_elixr(pd.DataFrame(np.concatenate([new_decks_01, new_decks_02], axis=0), columns=all_cards, dtype='int8'))
     del new_decks_02
     del new_decks_01
-    get_var_sizes(list(locals().items()))
+    #get_var_sizes(list(locals().items()))
     new_df = get_elixr_away(new_df)
     new_df = get_segment(new_df)
     new_df = get_segment_away(new_df)
@@ -912,6 +911,8 @@ def auto_reco(input_df, redis_channel):
     _, new_df = code_away_features(new_df, analysis_sel_cols)
     _, new_df = code_home_features(new_df, analysis_sel_cols)
     new_df = new_df.loc[:, analysis_sel_cols]
+
+    #new_df = reduce_mem_usage(new_df)
 
     intercept_df = base_df.copy()
     for col in intercept_df.columns:
@@ -999,3 +1000,35 @@ def modify_decks(home, away, card_cnt, n):
 def get_var_sizes(local_vars):
     for var, obj in local_vars:
         print(f'variable {var} size: {sys.getsizeof(obj)}')
+
+
+def reduce_mem_usage(df):
+    start_mem = df.memory_usage().sum() / 1024**2
+    print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
+
+    for col in df.columns:
+        col_type = df[col].dtype
+        if str(col_type)[:3] == 'int':
+            c_min = df[col].min()
+            c_max = df[col].max()
+            if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                df[col] = df[col].astype(np.int8)
+            elif c_min > np.iinfo(np.uint8).min and c_max < np.iinfo(np.uint8).max:
+                df[col] = df[col].astype(np.uint8)
+            elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                df[col] = df[col].astype(np.int16)
+            elif c_min > np.iinfo(np.uint16).min and c_max < np.iinfo(np.uint16).max:
+                df[col] = df[col].astype(np.uint16)
+            elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                df[col] = df[col].astype(np.int32)
+            elif c_min > np.iinfo(np.uint32).min and c_max < np.iinfo(np.uint32).max:
+                df[col] = df[col].astype(np.uint32)
+            elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                df[col] = df[col].astype(np.int64)
+            elif c_min > np.iinfo(np.uint64).min and c_max < np.iinfo(np.uint64).max:
+                df[col] = df[col].astype(np.uint64)
+
+    end_mem = df.memory_usage().sum() / 1024**2
+    print('Memory usage after optimization is: {:.2f} MB'.format(end_mem))
+    print('Decreased by {:.1f}%'.format(100 * (start_mem - end_mem) / start_mem))
+    return df

@@ -983,11 +983,11 @@ def retrieveAsync(request):
         redisChannel = request.session['win_deep_redis_channel']
         show_df = request.session['win_deep_show_df']
         msgs = ["Loading data...",
-                "About 10 more seconds..(I think)!",
-                "Bored yet?  It's coming..I promise!'",
-                "How about those Leafs, eh?  Still working here...",
-                "Almost there...don't go..you're going to like this!",
-                "Wait..I have to go and see..but I think I heard something..."
+                "Loading data....",
+                "Loading data.....",
+                "How about those Leafs, eh?   Still loading...",
+                "Loading data.......",
+                "Loading data........"
                 ]
 
         if show_df == False:
@@ -1021,16 +1021,16 @@ def retrieveAsync(request):
                 single_probs = deck_improv.get('new_ests')[range(0, single_only_len)]
                 single_top_10 = np.argsort(single_probs)[::-1][range(0, 10)]
                 single_rem_add = deck_improv.get('explan_ind')[0:single_only_len]
-                single_rem = [home_card_list[-1+single_rem_add[rem_item][0][0][0]] for rem_item in single_top_10]
-                single_add = [home_card_list[-1+single_rem_add[rem_item][1][0][0]] for rem_item in single_top_10]
+                single_rem = [home_card_list[single_rem_add[rem_item][0][0][0]] for rem_item in single_top_10]
+                single_add = [home_card_list[single_rem_add[rem_item][1][0][0]] for rem_item in single_top_10]
 
                 double_probs = deck_improv.get('new_ests')[range(single_only_len, (single_only_len + double_only_len))]
                 double_top_40 = np.argsort(double_probs)[::-1][range(0, 40)]
                 double_rem_add = deck_improv.get('explan_ind')[single_only_len:(single_only_len + double_only_len)]
-                double_rem_one = [home_card_list[-1+double_rem_add[rem_item][0][0][0]] for rem_item in double_top_40]
-                double_rem_two = [home_card_list[-1+double_rem_add[rem_item][0][0][1]] for rem_item in double_top_40]
-                double_add_one = [home_card_list[-1+double_rem_add[rem_item][1][0][0]] for rem_item in double_top_40]
-                double_add_two = [home_card_list[-1+double_rem_add[rem_item][1][0][1]] for rem_item in double_top_40]
+                double_rem_one = [home_card_list[double_rem_add[rem_item][0][0][0]] for rem_item in double_top_40]
+                double_rem_two = [home_card_list[double_rem_add[rem_item][0][0][1]] for rem_item in double_top_40]
+                double_add_one = [home_card_list[double_rem_add[rem_item][1][0][0]] for rem_item in double_top_40]
+                double_add_two = [home_card_list[double_rem_add[rem_item][1][0][1]] for rem_item in double_top_40]
 
                 single_df = pd.DataFrame(single_rem, columns=['Remove Card'])
                 single_df['Add Card'] = single_add
