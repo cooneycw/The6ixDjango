@@ -14,6 +14,7 @@ import urllib.request
 import json
 import pandas as pd
 import numpy as np
+import sys
 from sklearn.preprocessing import normalize
 
 
@@ -890,7 +891,11 @@ def auto_reco(input_df, redis_channel):
 
     explan_ind = explan_ind_01.copy()
     explan_ind.extend(explan_ind_02)
-    new_df = get_elixr(pd.DataFrame(np.concatenate([new_decks_01, new_decks_02], axis=0), columns=all_cards, dtype='int16'))
+    get_var_sizes(list(locals().items()))
+    new_df = get_elixr(pd.DataFrame(np.concatenate([new_decks_01, new_decks_02], axis=0), columns=all_cards, dtype='int8'))
+    del new_decks_02
+    del new_decks_01
+    get_var_sizes(list(locals().items()))
     new_df = get_elixr_away(new_df)
     new_df = get_segment(new_df)
     new_df = get_segment_away(new_df)
@@ -906,6 +911,7 @@ def auto_reco(input_df, redis_channel):
     _, new_df = code_features(new_df, analysis_sel_cols)
     _, new_df = code_away_features(new_df, analysis_sel_cols)
     _, new_df = code_home_features(new_df, analysis_sel_cols)
+    new_df = new_df.loc[:, analysis_sel_cols]
 
     intercept_df = base_df.copy()
     for col in intercept_df.columns:
@@ -940,6 +946,7 @@ def auto_reco(input_df, redis_channel):
 
     new_ests = (LR_MODEL.predict_proba(new_df.loc[:, analysis_sel_cols])[:, pred_index])
     ## create combinations by removing single cards
+    del new_df
 
     # write to redis
     # pickled_object = pickle.dumps(obj)
@@ -987,3 +994,8 @@ def modify_decks(home, away, card_cnt, n):
         i += 1
 
     return rem_list, add_list, explan_list, new_decks
+
+
+def get_var_sizes(local_vars):
+    for var, obj in local_vars:
+        print(f'variable {var} size: {sys.getsizeof(obj)}')
