@@ -23,12 +23,12 @@ services:
     networks:
       - dbnet
     ports:
-      - 6379:6379
+      - "6379:6379"
 
   nginx:
     build: ./nginx
     ports:
-      - 80:80
+      - "80:80"
     volumes:
       - static_volume:/home/app/web/staticfiles
       - media_volume:/home/app/web/mediafiles
