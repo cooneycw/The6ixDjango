@@ -50,6 +50,7 @@ services:
       - database-data:/var/lib/postgresql/data/ # persist data even if container shuts down
 
 volumes:
+  database-data:
   static_volume:
   media_volume:
 
