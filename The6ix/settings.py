@@ -102,6 +102,7 @@ WSGI_APPLICATION = 'The6ix.wsgi.application'
 
 POSTGRES_PORT = secret_dict['POSTGRES_PORT']
 POSTGRES_HOST = secret_dict['POSTGRES_HOST']
+
 CLASH_API = secret_dict['API']
 REDIS_PORT = secret_dict['REDIS_PORT']
 REDIS_HOST = secret_dict['REDIS_HOST']
@@ -114,7 +115,8 @@ if DEBUG==True:
 
 REDIS_INSTANCE = redis.StrictRedis(host=REDIS_HOST,
                                   port=REDIS_PORT, db=0)
-
+print(POSTGRES_HOST)
+print(POSTGRES_PORT)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
