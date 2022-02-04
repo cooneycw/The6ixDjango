@@ -37,6 +37,18 @@ services:
     networks:
       - nginx_network
 
+  database:
+    image: "postgres" # use latest official postgres version
+    restart: unless-stopped
+    env_file:
+      - ./database.env # configure postgres
+    networks:
+      - dbnet
+    ports:
+      - "5432:5432"
+    volumes:
+      - database-data:/var/lib/postgresql/data/ # persist data even if container shuts down
+
 volumes:
   static_volume:
   media_volume:
