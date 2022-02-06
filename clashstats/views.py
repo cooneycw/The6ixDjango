@@ -769,7 +769,7 @@ def membrept(request):
     result_df, lbounds, success = auto_pull(member_df.iloc[[member_sels[curr_page-1]]])
 
     if success == 0:
-        messages.warning('No ladder games played for this clan member.')
+        messages.warning(request, 'No ladder games played for this clan member.')
         show_df = False
         show_p = False
         memberStats = ""
@@ -1059,5 +1059,3 @@ def retrieveAsync(request):
                 }
                 return JsonResponse(ret_val, status=200)
     return JsonResponse({}, status=400)
-
-

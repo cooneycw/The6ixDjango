@@ -912,8 +912,6 @@ def auto_reco(input_df, redis_channel):
     _, new_df = code_home_features(new_df, analysis_sel_cols)
     new_df = new_df.loc[:, analysis_sel_cols]
 
-    #new_df = reduce_mem_usage(new_df)
-
     intercept_df = base_df.copy()
     for col in intercept_df.columns:
         intercept_df[col].values[:] = 0
@@ -964,7 +962,9 @@ def auto_reco(input_df, redis_channel):
         'explan_ind': explan_ind,
     }
 
+    REDIS_INSTANCE.expire(redis_key, 120)
     REDIS_INSTANCE.set(redis_key, pickle.dumps(ret_dict))
+    REDIS_INSTANCE.expire(redis_channel + 'reco_data_ready', 120)
     REDIS_INSTANCE.set(redis_channel + 'reco_data_ready', 'yes'.encode('utf-8'))
     return
 
@@ -1000,35 +1000,3 @@ def modify_decks(home, away, card_cnt, n):
 def get_var_sizes(local_vars):
     for var, obj in local_vars:
         print(f'variable {var} size: {sys.getsizeof(obj)}')
-
-
-def reduce_mem_usage(df):
-    start_mem = df.memory_usage().sum() / 1024**2
-    print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
-
-    for col in df.columns:
-        col_type = df[col].dtype
-        if str(col_type)[:3] == 'int':
-            c_min = df[col].min()
-            c_max = df[col].max()
-            if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                df[col] = df[col].astype(np.int8)
-            elif c_min > np.iinfo(np.uint8).min and c_max < np.iinfo(np.uint8).max:
-                df[col] = df[col].astype(np.uint8)
-            elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                df[col] = df[col].astype(np.int16)
-            elif c_min > np.iinfo(np.uint16).min and c_max < np.iinfo(np.uint16).max:
-                df[col] = df[col].astype(np.uint16)
-            elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                df[col] = df[col].astype(np.int32)
-            elif c_min > np.iinfo(np.uint32).min and c_max < np.iinfo(np.uint32).max:
-                df[col] = df[col].astype(np.uint32)
-            elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                df[col] = df[col].astype(np.int64)
-            elif c_min > np.iinfo(np.uint64).min and c_max < np.iinfo(np.uint64).max:
-                df[col] = df[col].astype(np.uint64)
-
-    end_mem = df.memory_usage().sum() / 1024**2
-    print('Memory usage after optimization is: {:.2f} MB'.format(end_mem))
-    print('Decreased by {:.1f}%'.format(100 * (start_mem - end_mem) / start_mem))
-    return df

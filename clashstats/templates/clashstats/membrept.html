@@ -53,9 +53,11 @@
                 </div>
             </div>
             {% if show_df == True %}
-                <table>
-                    {{ memberStats | safe }}
-                </table>
+                <div class="d-flex">
+                    <table>
+                        {{ memberStats | safe }}
+                    </table>
+                </div>
             {% endif %}
         </div>
 {% endblock content %}
