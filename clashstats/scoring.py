@@ -895,22 +895,6 @@ def auto_reco(input_df, redis_channel):
     del new_decks_02
     del new_decks_01
     #get_var_sizes(list(locals().items()))
-    new_df = get_elixr_away(new_df)
-    new_df = get_segment(new_df)
-    new_df = get_segment_away(new_df)
-    new_df['home_pb_lseason'] = 5700
-    new_df['net_pb_bseason'] = 0
-    new_df['net_exp_level'] = 0
-    new_df['net_level_gap'] = 0
-    _, new_df = add_trophs(new_df, analysis_sel_cols)
-    _, new_df = add_segments_home(new_df, analysis_sel_cols)
-    _, new_df = add_segments_away(new_df, analysis_sel_cols)
-    _, new_df = add_elixir_home(new_df, analysis_sel_cols)
-    _, new_df = add_elixir_away(new_df, analysis_sel_cols)
-    _, new_df = code_features(new_df, analysis_sel_cols)
-    _, new_df = code_away_features(new_df, analysis_sel_cols)
-    _, new_df = code_home_features(new_df, analysis_sel_cols)
-    new_df = new_df.loc[:, analysis_sel_cols]
 
     intercept_df = base_df.copy()
     for col in intercept_df.columns:
@@ -939,19 +923,44 @@ def auto_reco(input_df, redis_channel):
     ltroph_df.loc[:, 'net_level_gap'] = 0
     level_trophies_impact = (base_est / (LR_MODEL.predict_proba(ltroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
 
-    deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (1 + exp_trophies_impact) / (1+level_trophies_impact) - 1
+    deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (
+                1 + exp_trophies_impact) / (1 + level_trophies_impact) - 1
 
     norm_est = (1 + deck_impact) * intercept
 
-    new_ests = (LR_MODEL.predict_proba(new_df.loc[:, analysis_sel_cols])[:, pred_index])
-    ## create combinations by removing single cards
-    del new_df
+    iter_size = int(0.33*len(new_df))
 
-    # write to redis
-    # pickled_object = pickle.dumps(obj)
-    # r.set('some_key', pickled_object)
-    # unpacked_object = pickle.loads(r.get('some_key'))
+    i = 0
+    max_i = len(new_df)
+    new_ests = np.zeros(max_i)
+    while i < max_i:
+        inds = min((i+iter_size), max_i)
+        if inds == 0:
+            break
+        temp_df = new_df[i:inds].reset_index()
+        temp_df = get_elixr_away(temp_df)
+        temp_df = get_segment(temp_df)
+        temp_df = get_segment_away(temp_df)
+        temp_df['home_pb_lseason'] = 5700
+        temp_df['net_pb_bseason'] = 0
+        temp_df['net_exp_level'] = 0
+        temp_df['net_level_gap'] = 0
+        _, temp_df = add_trophs(temp_df, analysis_sel_cols)
+        _, temp_df = add_segments_home(temp_df, analysis_sel_cols)
+        _, temp_df = add_segments_away(temp_df, analysis_sel_cols)
+        _, temp_df = add_elixir_home(temp_df, analysis_sel_cols)
+        _, temp_df = add_elixir_away(temp_df, analysis_sel_cols)
+        _, temp_df = code_features(temp_df, analysis_sel_cols)
+        _, temp_df = code_away_features(temp_df, analysis_sel_cols)
+        _, temp_df = code_home_features(temp_df, analysis_sel_cols)
+        temp_df = temp_df.loc[:, analysis_sel_cols]
 
+        ests = (LR_MODEL.predict_proba(temp_df.loc[:, analysis_sel_cols])[:, pred_index])
+        new_ests[range(i, inds)] = ests
+
+        del temp_df
+        ## create combinations by removing single cards
+        i = i + iter_size
 
     ret_dict = {
         'norm_est': norm_est,
