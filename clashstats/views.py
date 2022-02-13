@@ -878,8 +878,8 @@ def win_deep(request, pk):
             REDIS_INSTANCE.set(channel, date_time)
             pool = ThreadPool(processes=1)
 
-            #async_result = pool.apply_async(auto_reco, args=(games.iloc[[pk - 1]], channel,))  # tuple of args for foo
-            cwc = auto_reco(games.iloc[[pk-1]], channel)
+            async_result = pool.apply_async(auto_reco, args=(games.iloc[[pk - 1]], channel,))  # tuple of args for foo
+            # cwc = auto_reco(games.iloc[[pk-1]], channel) # for testing only
             show_df = True
             request.session['win_deep_show_df'] = show_df
             request.session['win_deep_redis_channel'] = channel
