@@ -928,7 +928,7 @@ def auto_reco(input_df, redis_channel):
 
     norm_est = (1 + deck_impact) * intercept
 
-    iter_size = int(0.33*len(new_df))
+    iter_size = int(0.21*len(new_df))
 
     i = 0
     max_i = len(new_df)
