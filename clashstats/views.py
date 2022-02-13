@@ -983,11 +983,13 @@ def retrieveAsync(request):
         redisChannel = request.session['win_deep_redis_channel']
         show_df = request.session['win_deep_show_df']
         msgs = ["Loading data...",
-                "Loading data....",
-                "Loading data.....",
-                "How about those Leafs, eh?   Still loading...",
-                "Loading data.......",
-                "Loading data........"
+                "Performing calculations...",
+                "Performing calculations....",
+                "How about those Leafs, eh?   Still working...",
+                "Performing calculations.....",
+                "Performing calculations......",
+                "Performing calculations.......",
+                "Performing calculations........",
                 ]
 
         if show_df == False:

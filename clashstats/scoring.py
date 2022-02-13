@@ -973,7 +973,7 @@ def modify_decks(home, away, card_cnt, n):
     rem_list = list(itertools.combinations(home, n))
     remove_iters = len(rem_list)
 
-    add_cards = [x for x in range(1, (1 + card_cnt)) if x not in home]
+    add_cards = [x for x in range(0, card_cnt) if x not in home]
     add_list = list(itertools.combinations(add_cards, n))
     add_iters = len(add_list)
 
