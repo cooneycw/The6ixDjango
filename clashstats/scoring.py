@@ -1,6 +1,6 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
-    CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
-    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL, REDIS_INSTANCE
+    CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, STATS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL, XGB_MODEL, MIN_MAX_SCALER, TF_MODEL, STACKED_MODEL, REDIS_INSTANCE
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 from math import comb
@@ -15,7 +15,8 @@ import json
 import pandas as pd
 import numpy as np
 import sys
-from sklearn.preprocessing import normalize
+import xgboost as xgb
+import tensorflow as tf
 
 
 def rowIndex(row):
@@ -121,6 +122,8 @@ def auto_pull(member):
     clan_df_v2 = get_segment_away(get_segment(clan_df_v2))
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
+    stats_sel_cols = STATS_SEL_COLS.copy()
+
     _, clan_df_v2 = add_trophs(clan_df_v2, analysis_sel_cols)
     _, clan_df_v2 = add_segments_home(clan_df_v2, analysis_sel_cols)
     _, clan_df_v2 = add_segments_away(clan_df_v2, analysis_sel_cols)
@@ -137,12 +140,7 @@ def auto_pull(member):
     #    else:
     #        df_out = df_out.append(results, ignore_index=True)
     #    i += 1
-
-    lr_test = LR_MODEL.predict_proba(clan_df_v2.loc[:, analysis_sel_cols])
-    if LR_MODEL.classes_[0] == 0:
-        pred_outcome = lr_test[:, 1]
-    else:
-        pred_outcome = lr_test[:, 0]
+    pred_outcome = predict(clan_df_v2.loc[:, analysis_sel_cols], clan_df_v2.loc[:, stats_sel_cols], stats_sel_cols, lr_only=True)
     clan_df_v2 = pd.concat([clan_df_v2, pd.DataFrame(pred_outcome, columns=['expected_win_ratio'])], axis=1)
 
     return clan_df_v2, LBOUNDS, success
@@ -795,35 +793,57 @@ def auto_analyze(input_df):
         pred_index = 0
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
+    stats_sel_cols = STATS_SEL_COLS.copy()
+
     base_df = input_df.loc[:, analysis_sel_cols]
-    base_est = LR_MODEL.predict_proba(base_df)[0, pred_index]
+    base_stats_df = input_df.loc[:, stats_sel_cols]
+    base_est = predict(base_df, base_stats_df, stats_sel_cols, lr_only=True)
 
     intercept_df = base_df.copy()
+    intercept_stats_df = base_stats_df.copy()
     for col in intercept_df.columns:
         intercept_df[col].values[:] = 0
-    intercept = LR_MODEL.predict_proba(intercept_df)[0, pred_index]
+    for col in intercept_stats_df.columns:
+        intercept_stats_df[col].values[:] = 0
+
+    intercept = predict(intercept_df, intercept_stats_df, stats_sel_cols, lr_only=True)
 
     troph_cols = [item for item in analysis_sel_cols if "trophs" in item]
+    troph_stats_cols = [item for item in stats_sel_cols if "trophs" in item]
     if len(troph_cols) > 0:
         troph_df = base_df.copy()
+        troph_stats_df = base_stats_df.copy()
         troph_df.drop(troph_cols, axis=1, inplace=True)
+        troph_stats_df.drop(troph_stats_cols, axis=1, inplace=True)
         troph_df['home_pb_lseason'] = 5700
+        troph_stats_df['home_pb_lseason'] = 5700
         _, troph_df = add_trophs(troph_df, analysis_sel_cols)
-        lseason_trophies_impact = ((LR_MODEL.predict_proba(troph_df.loc[:, analysis_sel_cols])[0, pred_index]) / base_est) - 1
+        _, troph_stats_df = add_trophs(troph_stats_df, stats_sel_cols)
+        probs = predict(troph_df.loc[:, analysis_sel_cols], troph_stats_df.loc[:, stats_sel_cols], stats_sel_cols, lr_only=True)
+        lseason_trophies_impact = (probs / base_est) - 1
     else:
         lseason_trophies_impact = 0
 
     btroph_df = base_df.copy()
+    btroph_stats_df = base_stats_df.copy()
     btroph_df.loc[:, 'net_pb_bseason'] = 0
-    bseason_trophies_impact = (base_est / (LR_MODEL.predict_proba(btroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+    btroph_stats_df.loc[:, 'net_pb_bseason'] = 0
+    probs = predict(btroph_df.loc[:, analysis_sel_cols], btroph_stats_df.loc[:, stats_sel_cols], stats_sel_cols, lr_only=True)
+    bseason_trophies_impact = (base_est / probs) - 1
 
     etroph_df = base_df.copy()
+    etroph_stats_df = base_stats_df.copy()
     etroph_df.loc[:, 'net_exp_level'] = 0
-    exp_trophies_impact = (base_est / (LR_MODEL.predict_proba(etroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+    etroph_stats_df.loc[:, 'net_exp_level'] = 0
+    probs = predict(etroph_df.loc[:, analysis_sel_cols], etroph_stats_df.loc[:, stats_sel_cols], stats_sel_cols, lr_only=True)
+    exp_trophies_impact = (base_est / probs) - 1
 
     ltroph_df = base_df.copy()
+    ltroph_stats_df = base_stats_df.copy()
     ltroph_df.loc[:, 'net_level_gap'] = 0
-    level_trophies_impact = (base_est / (LR_MODEL.predict_proba(ltroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
+    ltroph_stats_df.loc[:, 'net_level_gap'] = 0
+    probs = predict(ltroph_df.loc[:, analysis_sel_cols], ltroph_stats_df.loc[:, stats_sel_cols], stats_sel_cols, lr_only=True)
+    level_trophies_impact = (base_est / probs) - 1
 
     deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (1 + exp_trophies_impact) / (1+level_trophies_impact) - 1
 
@@ -840,26 +860,38 @@ def auto_analyze(input_df):
     # lr_test = LR_MODEL.predict_proba(clan_df_v2.loc[:, analysis_sel_cols])
 
     ret_dict = {
-        'base_est': base_est,
-        'intercept': intercept,
-        'lseason_trophies_impact': lseason_trophies_impact,
-        'bseason_trophies_impact': bseason_trophies_impact,
-        'exp_trophies_impact': exp_trophies_impact,
-        'level_trophies_impact': level_trophies_impact,
-        'deck_impact': deck_impact,
+        'base_est': base_est[0],
+        'intercept': intercept[0],
+        'lseason_trophies_impact': lseason_trophies_impact[0],
+        'bseason_trophies_impact': bseason_trophies_impact[0],
+        'exp_trophies_impact': exp_trophies_impact[0],
+        'level_trophies_impact': level_trophies_impact[0],
+        'deck_impact': deck_impact[0],
     }
     return ret_dict
 
 
-def auto_reco(input_df, redis_channel):
+def predict(base_df, base_stats_df, stats_sel_cols, lr_only):
+    if lr_only == False:
+        base_xg_inp = xgb.DMatrix(data=base_stats_df.values, feature_names=stats_sel_cols)
+        base_lr_test = LR_MODEL.predict_proba(base_df)
+        base_xg_test = XGB_MODEL.predict(base_xg_inp)
+        base_stats_df_minmax = MIN_MAX_SCALER.transform(base_stats_df.astype(np.float32))
+        base_nn_test = TF_MODEL.predict(base_stats_df_minmax)
+
+        base_val = np.concatenate([base_nn_test, base_lr_test[:, 1:2]], axis=1)
+        base_val = np.concatenate([base_val, base_xg_test.reshape(-1, 1)], axis=1)
+        probability_est = STACKED_MODEL.predict_proba(base_val)[:, 1]
+    else:
+        probability_est = LR_MODEL.predict_proba(base_df)[:, 1]
+    return probability_est
+
+
+def auto_reco(input_df, redis_channel, lr_only):
     ret_dict = None
     redis_key = redis_channel + 'ret_dict'
     REDIS_INSTANCE.set(redis_channel + 'reco_data_ready', 'no'.encode('utf-8'))
     REDIS_INSTANCE.set(redis_key, pickle.dumps(ret_dict))
-    if LR_MODEL.classes_[0] == 0:
-        pred_index = 1
-    else:
-        pred_index = 0
 
     cards = get_cards()
     cards.sort_values(by=['card'], inplace=True)
@@ -873,12 +905,16 @@ def auto_reco(input_df, redis_channel):
     card_list_compare[66] = 'Mini P.E.K.K.A'
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
+    stats_sel_cols = STATS_SEL_COLS.copy()
 
     all_cards = home_card_list.copy()
     all_cards.extend(away_card_list)
     combin_base_df = input_df.loc[:, all_cards]
+    input_stats_df = input_df.copy()
     base_df = input_df.loc[:, analysis_sel_cols]
-    base_est = LR_MODEL.predict_proba(base_df)[0, pred_index]
+    base_stats_df = input_stats_df.loc[:, stats_sel_cols]
+
+    norm_est = predict(base_df, base_stats_df, stats_sel_cols, lr_only=False)
 
     player_cards = combin_base_df.T.squeeze().to_numpy().nonzero()
     home = player_cards[0][range(0, 8)]
@@ -896,39 +932,7 @@ def auto_reco(input_df, redis_channel):
     del new_decks_01
     #get_var_sizes(list(locals().items()))
 
-    intercept_df = base_df.copy()
-    for col in intercept_df.columns:
-        intercept_df[col].values[:] = 0
-    intercept = LR_MODEL.predict_proba(intercept_df)[0, pred_index]
-
-    troph_cols = [item for item in analysis_sel_cols if "trophs" in item]
-    if len(troph_cols) > 0:
-        troph_df = base_df.copy()
-        troph_df.drop(troph_cols, axis=1, inplace=True)
-        troph_df['home_pb_lseason'] = 5700
-        _, troph_df = add_trophs(troph_df, analysis_sel_cols)
-        lseason_trophies_impact = ((LR_MODEL.predict_proba(troph_df.loc[:, analysis_sel_cols])[0, pred_index]) / base_est) - 1
-    else:
-        lseason_trophies_impact = 0
-
-    btroph_df = base_df.copy()
-    btroph_df.loc[:, 'net_pb_bseason'] = 0
-    bseason_trophies_impact = (base_est / (LR_MODEL.predict_proba(btroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
-
-    etroph_df = base_df.copy()
-    etroph_df.loc[:, 'net_exp_level'] = 0
-    exp_trophies_impact = (base_est / (LR_MODEL.predict_proba(etroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
-
-    ltroph_df = base_df.copy()
-    ltroph_df.loc[:, 'net_level_gap'] = 0
-    level_trophies_impact = (base_est / (LR_MODEL.predict_proba(ltroph_df.loc[:, analysis_sel_cols])[0, pred_index])) - 1
-
-    deck_impact = (base_est / intercept) / (1 + lseason_trophies_impact) / (1 + bseason_trophies_impact) / (
-                1 + exp_trophies_impact) / (1 + level_trophies_impact) - 1
-
-    norm_est = (1 + deck_impact) * intercept
-
-    iter_size = int(0.21*len(new_df))
+    iter_size = int(0.1*len(new_df))
 
     i = 0
     max_i = len(new_df)
@@ -941,10 +945,10 @@ def auto_reco(input_df, redis_channel):
         temp_df = get_elixr_away(temp_df)
         temp_df = get_segment(temp_df)
         temp_df = get_segment_away(temp_df)
-        temp_df['home_pb_lseason'] = 5700
-        temp_df['net_pb_bseason'] = 0
-        temp_df['net_exp_level'] = 0
-        temp_df['net_level_gap'] = 0
+        temp_df['home_pb_lseason'] = int(input_df.loc[:, 'home_pb_lseason'])
+        temp_df['net_pb_bseason'] = int(input_df.loc[:, 'net_pb_lseason'])
+        temp_df['net_exp_level'] = int(input_df.loc[:, 'net_exp_level'])
+        temp_df['net_level_gap'] = int(input_df.loc[:, 'net_level_gap'])
         _, temp_df = add_trophs(temp_df, analysis_sel_cols)
         _, temp_df = add_segments_home(temp_df, analysis_sel_cols)
         _, temp_df = add_segments_away(temp_df, analysis_sel_cols)
@@ -953,12 +957,14 @@ def auto_reco(input_df, redis_channel):
         _, temp_df = code_features(temp_df, analysis_sel_cols)
         _, temp_df = code_away_features(temp_df, analysis_sel_cols)
         _, temp_df = code_home_features(temp_df, analysis_sel_cols)
+        temp_stats_df = temp_df.loc[:, stats_sel_cols]
         temp_df = temp_df.loc[:, analysis_sel_cols]
 
-        ests = (LR_MODEL.predict_proba(temp_df.loc[:, analysis_sel_cols])[:, pred_index])
+        ests = predict(temp_df, temp_stats_df, stats_sel_cols, lr_only)
         new_ests[range(i, inds)] = ests
 
         del temp_df
+        del temp_stats_df
         ## create combinations by removing single cards
         i = i + iter_size
 

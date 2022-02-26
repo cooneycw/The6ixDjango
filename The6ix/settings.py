@@ -16,6 +16,7 @@ import ast
 import socket
 import os
 import redis
+import tensorflow as tf
 from joblib import load
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -188,11 +189,16 @@ max_seg_name = STAT_FILES / 'pickles/max_seg'
 max_a_seg_name = STAT_FILES / 'pickles/max_a_seg'
 analysis_var_list_name = STAT_FILES / 'pickles/analysis_var_list'
 analysis_sel_cols_name = STAT_FILES / 'pickles/analysis_sel_cols'
+stats_sel_cols_name = STAT_FILES / 'pickles/stats_sel_cols'
 lbounds_name = STAT_FILES / 'pickles/lbounds'
 ubounds_name = STAT_FILES / 'pickles/ubounds'
 elixr_lbounds_name = STAT_FILES / 'pickles/home_lbounds'
 elixr_ubounds_name = STAT_FILES / 'pickles/home_ubounds'
 lr_model_name = STAT_FILES / 'pickles/lr_anova_model'
+xgb_model_name = STAT_FILES / 'pickles/xg_outcome_model'
+min_max_scaler_name = STAT_FILES / 'pickles/min_max_scaler'
+tf_model_name = STAT_FILES / 'pickles/nn_outcome_model'
+stacked_model_name = STAT_FILES / 'pickles/stacked_outcome_model'
 
 CLUSTERING = load(kmeans_name)
 HCLUSTERING = load(hclust_name)
@@ -202,8 +208,13 @@ MAX_SEG = load(max_seg_name)
 MAX_A_SEG = load(max_a_seg_name)
 ANALYSIS_VAR_LIST = load(analysis_var_list_name)
 ANALYSIS_SEL_COLS = load(analysis_sel_cols_name)
+STATS_SEL_COLS = load(stats_sel_cols_name)
 LBOUNDS = load(lbounds_name)
 UBOUNDS = load(ubounds_name)
 ELIXR_LBOUNDS = load(elixr_lbounds_name)
 ELIXR_UBOUNDS = load(elixr_ubounds_name)
 LR_MODEL = load(lr_model_name)
+XGB_MODEL = load(xgb_model_name)
+MIN_MAX_SCALER = load(min_max_scaler_name)
+TF_MODEL = tf.keras.models.load_model(tf_model_name)
+STACKED_MODEL = load(stacked_model_name)

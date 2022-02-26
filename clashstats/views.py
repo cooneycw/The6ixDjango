@@ -872,14 +872,18 @@ def win_deep(request, pk):
             return redirect('clashstats-membrept')
         elif request.POST.get('Return to Menu') == 'Return to Menu':
             return redirect('clashstats-menu')
-        elif request.POST.get('Perform Card Analysis') == 'Perform Card Analysis':
+        elif (request.POST.get('Perform Logistic Card Analysis') == 'Perform Logistic Card Analysis') or \
+             (request.POST.get('Perform Stacked Card Analysis') == 'Perform Stacked Card Analysis'):
+            lr_only = False
+            if request.POST.get('Perform Logistic Card Analysis') == 'Perform Logistic Card Analysis':
+                lr_only = True
             channel = str(games['home_tag'][0])
             date_time = datetime.datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S")
             REDIS_INSTANCE.set(channel, date_time)
             pool = ThreadPool(processes=1)
 
-            async_result = pool.apply_async(auto_reco, args=(games.iloc[[pk - 1]], channel,))  # tuple of args for foo
-            # cwc = auto_reco(games.iloc[[pk-1]], channel) # for testing only
+            async_result = pool.apply_async(auto_reco, args=(games.iloc[[pk - 1]], channel, lr_only, ))  # tuple of args for foo
+            #cwc = auto_reco(games.iloc[[pk-1]], channel) # for testing only
             show_df = True
             request.session['win_deep_show_df'] = show_df
             request.session['win_deep_redis_channel'] = channel
