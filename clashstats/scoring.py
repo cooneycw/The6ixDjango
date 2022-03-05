@@ -310,11 +310,12 @@ def get_async_games(member):
 
     result = pd.concat([result, home_card_df, away_card_df], axis=1)
     export = result.loc[result.outcome != -1]
+    export.reset_index(drop=True, inplace=True)
 
     success = 1
-    if len(result) == 0:
+    if len(export) == 0:
         success = 0
-        result = []
+        export = []
     return success, export
 
 
