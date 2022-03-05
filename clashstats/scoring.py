@@ -315,7 +315,7 @@ def get_async_games(member):
     if len(result) == 0:
         success = 0
         result = []
-    return success, result
+    return success, export
 
 
 def game_cleanup_asynch_clan(input_df):
