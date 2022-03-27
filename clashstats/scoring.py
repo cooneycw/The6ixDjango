@@ -1,6 +1,6 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
     CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, STATS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
-    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_MODEL, XGB_MODEL, MIN_MAX_SCALER, TF_MODEL, STACKED_MODEL, REDIS_INSTANCE
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, MIN_MAX_SCALER, TF_MODEL, STACKED_MODEL, REDIS_INSTANCE
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 from math import comb
@@ -788,7 +788,7 @@ def code_away_features(input_df, analysis_sel_cols):
 
 
 def auto_analyze(input_df):
-    if LR_MODEL.classes_[0] == 0:
+    if LR_ANOVA.classes_[0] == 0:
         pred_index = 1
     else:
         pred_index = 0
@@ -880,11 +880,11 @@ def predict(base_df, base_stats_df, stats_sel_cols, lr_only):
         base_stats_df_minmax = MIN_MAX_SCALER.transform(base_stats_df.astype(np.float32))
         base_nn_test = TF_MODEL.predict(base_stats_df_minmax)
 
-        base_val = np.concatenate([base_nn_test, base_lr_test[:, 1:2]], axis=1)
+        base_val = np.concatenate([base_nn_test[:, 1:2], base_lr_test[:, 1:2]], axis=1)
         base_val = np.concatenate([base_val, base_xg_test.reshape(-1, 1)], axis=1)
         probability_est = STACKED_MODEL.predict_proba(base_val)[:, 1]
     else:
-        probability_est = LR_MODEL.predict_proba(base_df)[:, 1]
+        probability_est = LR_ANOVA.predict_proba(base_df)[:, 1]
     return probability_est
 
 
