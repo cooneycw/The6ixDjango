@@ -1,6 +1,7 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
     CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, STATS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
-    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, MIN_MAX_SCALER, TF_MODEL, STACKED_MODEL, REDIS_INSTANCE
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, MIN_MAX_SCALER, TF_MODEL, STACKED_MODEL, \
+    LG_MODEL, GN_MODEL, REDIS_INSTANCE
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 from math import comb
@@ -197,8 +198,8 @@ def get_async_games(member):
 
     card_list_compare = [card.replace('_', ' ') for card in home_card_list]
     # adjustment for Pekka / mini-Pekka
-    card_list_compare[74] = 'P.E.K.K.A'  # 106 amend if new cards inserted
-    card_list_compare[66] = 'Mini P.E.K.K.A'
+    card_list_compare[75] = 'P.E.K.K.A'  # 107 amend if new cards inserted
+    card_list_compare[67] = 'Mini P.E.K.K.A'
     elixr_for_mult = elixr.values
     home_tag = list()
     home_name = list()
@@ -718,8 +719,8 @@ def add_elixir_away(analyze_df, analysis_sel_cols):
 def code_features(input_df, analysis_sel_cols):
     analysis_var_list = ANALYSIS_VAR_LIST.copy()
 
-    analysis_home = analysis_var_list[0:1 * 106]  # 106 amendment
-    analysis_away = analysis_var_list[106:2 * 106]  # 106 amendment
+    analysis_home = analysis_var_list[0:1 * 107]  # 107 amendment
+    analysis_away = analysis_var_list[107:2 * 107]  # 107 amendment
 
     feature_list = [var for var in analysis_sel_cols if "_x_" in var]
 
@@ -743,7 +744,7 @@ def code_features(input_df, analysis_sel_cols):
 def code_home_features(input_df, analysis_sel_cols):
     analysis_var_list = ANALYSIS_VAR_LIST.copy()
 
-    analysis_home = analysis_var_list[0:1 * 106]  # 106 amendment
+    analysis_home = analysis_var_list[0:1 * 107]  # 107 amendment
 
     feature_list = [var for var in analysis_sel_cols if "_q_" in var]
 
@@ -767,7 +768,7 @@ def code_home_features(input_df, analysis_sel_cols):
 def code_away_features(input_df, analysis_sel_cols):
     analysis_var_list = ANALYSIS_VAR_LIST.copy()
 
-    analysis_away = analysis_var_list[106:2 * 106]  # 106 amendment
+    analysis_away = analysis_var_list[107:2 * 107]  # 107 amendment
 
     feature_list = [var for var in analysis_sel_cols if "_z_" in var]
 
@@ -876,13 +877,32 @@ def predict(base_df, base_stats_df, stats_sel_cols, lr_only):
     if lr_only == False:
         base_xg_inp = xgb.DMatrix(data=base_stats_df.values, feature_names=stats_sel_cols)
         base_lr_test = LR_MODEL.predict_proba(base_df)
+        base_lg_test = LG_MODEL.predict_proba(base_stats_df[stats_sel_cols].values)
+        base_gn_test = GN_MODEL.predict_proba(base_stats_df[stats_sel_cols].values)
         base_xg_test = XGB_MODEL.predict(base_xg_inp)
         base_stats_df_minmax = MIN_MAX_SCALER.transform(base_stats_df.astype(np.float32))
         base_nn_test = TF_MODEL.predict(base_stats_df_minmax)
 
         base_val = np.concatenate([base_nn_test[:, 1:2], base_lr_test[:, 1:2]], axis=1)
+        base_val = np.concatenate([base_val, base_lg_test[:, 1:2]], axis=1)
+        base_val = np.concatenate([base_val, base_gn_test[:, 1:2]], axis=1)
         base_val = np.concatenate([base_val, base_xg_test.reshape(-1, 1)], axis=1)
-        probability_est = STACKED_MODEL.predict_proba(base_val)[:, 1]
+
+        i = 0
+        new_base_val = np.zeros((base_val.shape[0], base_val.shape[1] * 4))
+        while i < len(new_base_val):
+            if base_stats_df['seg001'].iloc[i] == 1:
+                if base_stats_df['a_seg001'].iloc[i] == 1:
+                    new_base_val[i, 0:5] = base_val[i, 0:5]
+                else:
+                    new_base_val[i, 5:10] = base_val[i, 0:5]
+            else:
+                if base_stats_df['a_seg001'].iloc[i] == 1:
+                    new_base_val[i, 10:15] = base_val[i, 0:5]
+                else:
+                    new_base_val[i, 15:20] = base_val[i, 0:5]
+            i += 1
+        probability_est = STACKED_MODEL.predict_proba(new_base_val)[:, 1]
     else:
         probability_est = LR_ANOVA.predict_proba(base_df)[:, 1]
     return probability_est
@@ -902,7 +922,7 @@ def auto_reco(input_df, redis_channel, lr_only):
     away_card_list = [('a_' + card) for card in home_card_list]
     card_list_compare = [card.replace('_', ' ') for card in home_card_list]
     # adjustment for Pekka / mini-Pekka
-    card_list_compare[74] = 'P.E.K.K.A'  # 106 amend if new cards inserted
+    card_list_compare[75] = 'P.E.K.K.A'  # 107 amend if new cards inserted
     card_list_compare[66] = 'Mini P.E.K.K.A'
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()

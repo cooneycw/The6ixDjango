@@ -22,7 +22,7 @@ from joblib import load
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-STAT_DATE = 'January 5, 2022'
+STAT_DATE = 'April 2, 2022'
 
 IPADD = socket.gethostbyname(socket.gethostname())
 ec2 = True
@@ -196,6 +196,8 @@ elixr_lbounds_name = STAT_FILES / 'pickles/home_lbounds'
 elixr_ubounds_name = STAT_FILES / 'pickles/home_ubounds'
 lr_anova_name = STAT_FILES / 'pickles/lr_anova_model'
 lr_model_name = STAT_FILES / 'pickles/lr_outcome_model'
+lg_model_name = STAT_FILES / 'pickles/lg_outcome_model'
+gn_model_name = STAT_FILES / 'pickles/gn_outcome_model'
 xgb_model_name = STAT_FILES / 'pickles/xg_outcome_model'
 min_max_scaler_name = STAT_FILES / 'pickles/min_max_scaler'
 tf_model_name = STAT_FILES / 'pickles/nn_outcome_model'
@@ -216,6 +218,8 @@ ELIXR_LBOUNDS = load(elixr_lbounds_name)
 ELIXR_UBOUNDS = load(elixr_ubounds_name)
 LR_ANOVA = load(lr_anova_name)
 LR_MODEL = load(lr_model_name)
+LG_MODEL = load(lg_model_name)
+GN_MODEL = load(gn_model_name)
 XGB_MODEL = load(xgb_model_name)
 MIN_MAX_SCALER = load(min_max_scaler_name)
 TF_MODEL = tf.keras.models.load_model(tf_model_name)
