@@ -120,6 +120,7 @@ def auto_pull(member):
 
     clan_df_v2.sort_values(by=['game_dt', 'game_tm'], ascending=False, inplace=True)
 
+    clan_df_v2.reset_index(drop=True, inplace=True)
     clan_df_v2 = get_segment_away(get_segment(clan_df_v2))
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
@@ -877,8 +878,8 @@ def predict(base_df, base_stats_df, stats_sel_cols, lr_only):
     if lr_only == False:
         base_xg_inp = xgb.DMatrix(data=base_stats_df.values, feature_names=stats_sel_cols)
         base_lr_test = LR_MODEL.predict_proba(base_df)
-        base_lg_test = LG_MODEL.predict_proba(base_stats_df[stats_sel_cols].values)
-        base_gn_test = GN_MODEL.predict_proba(base_stats_df[stats_sel_cols].values)
+        base_lg_test = LG_MODEL.predict_proba(base_stats_df[stats_sel_cols])
+        base_gn_test = GN_MODEL.predict_proba(base_df)
         base_xg_test = XGB_MODEL.predict(base_xg_inp)
         base_stats_df_minmax = MIN_MAX_SCALER.transform(base_stats_df.astype(np.float32))
         base_nn_test = TF_MODEL.predict(base_stats_df_minmax)
