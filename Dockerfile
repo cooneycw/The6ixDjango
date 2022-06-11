@@ -13,6 +13,8 @@ RUN pip install --upgrade boto3
 RUN pip install --upgrade psycopg2
 RUN pip install --upgrade gunicorn
 RUN pip install --upgrade django-crispy-forms
+RUN pip install --upgrade celery
+RUN pip install --upgrade django-celery-results
 
 COPY . /code/app
 

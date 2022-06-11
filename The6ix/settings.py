@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_results',
 ]
 
 MIDDLEWARE = [
@@ -107,13 +108,22 @@ POSTGRES_HOST = secret_dict['POSTGRES_HOST']
 CLASH_API = secret_dict['API']
 REDIS_PORT = secret_dict['REDIS_PORT']
 REDIS_HOST = secret_dict['REDIS_HOST']
+CELERY_BROKER_URL = secret_dict['CELERY_BROKER_URL']
+CELERY_RESULT_BACKEND = secret_dict['CELERY_RESULT_BACKEND']
+CELERY_RESULT_SERIALIZER = 'pickle'
+CELERY_TASK_SERIALIZER = 'pickle'
+CELERY_ACCEPT_CONTENT = ['pickle']
 
 if DEBUG==True:
     POSTGRES_PORT = secret_dict['POSTGRES_PORT_DEV']
     POSTGRES_HOST = secret_dict['POSTGRES_HOST_DEV']
     CLASH_API = secret_dict['API_DEV']
     REDIS_HOST = secret_dict['REDIS_HOST_DEV']
+    CELERY_BROKER_URL = secret_dict['CELERY_BROKER_URL_DEV']
 
+CELERY_RESULT_BACKEND = 'django-db'
+
+REDIS_LOCK_KEY = secret_dict['REDIS_LOCK_KEY']
 REDIS_INSTANCE = redis.StrictRedis(host=REDIS_HOST,
                                   port=REDIS_PORT, db=0)
 
@@ -153,8 +163,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/4.0/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'US/Eastern'
 
 USE_I18N = True
 

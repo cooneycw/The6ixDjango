@@ -24,6 +24,26 @@ services:
       - dbnet
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/var/lib/redis/data/ # persist data even if container shuts down
+
+  celery:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: celery -A PriceOptimization worker -l info
+    volumes:
+      - .:/PriceOptimization
+    depends_on:
+      - web
+      - redis
+    networks:
+      - dbnet
+    environment:
+      - C_FORCE_ROOT=true
+      - aws_access_key_id=${aws_access_key_id}
+      - aws_secret_access_key=${aws_secret_access_key}
 
   nginx:
     build: ./nginx
@@ -51,6 +71,7 @@ services:
 
 volumes:
   database-data:
+  redis-data:
   static_volume:
   media_volume:
 

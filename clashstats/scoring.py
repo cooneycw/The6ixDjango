@@ -954,7 +954,7 @@ def auto_reco(input_df, redis_channel, lr_only):
     del new_decks_01
     #get_var_sizes(list(locals().items()))
 
-    iter_size = int(0.1*len(new_df))
+    iter_size = int(0.33*len(new_df))
 
     i = 0
     max_i = len(new_df)

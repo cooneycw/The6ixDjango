@@ -5,6 +5,8 @@ from django.contrib.auth.decorators import login_required
 from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm, winDeepForm
 from .scoring import get_segment, get_cards, get_clan, auto_pull, auto_analyze, auto_reco, mid, rowIndex
 from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL, REDIS_INSTANCE
+from .models import Reports
+from django_celery_results.models import TaskResult
 from multiprocessing.pool import ThreadPool
 import pandas as pd
 import numpy as np
@@ -978,91 +980,55 @@ def win_deep(request, pk):
     return render(request, 'clashstats/win_deep.html', context)
 
 
-def is_ajax(request):
-    return request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest'
-
-
 @login_required()
-def retrieveAsync(request):
-    if is_ajax(request=request) and request.method == "GET":
-        redisChannel = request.session['win_deep_redis_channel']
-        show_df = request.session['win_deep_show_df']
-        msgs = ["Loading data...",
-                "Performing calculations...",
-                "Performing calculations....",
-                "How about those Leafs, eh?   Still working...",
-                "Performing calculations.....",
-                "Performing calculations......",
-                "Performing calculations.......",
-                "Performing calculations........",
-                ]
+def viewrepts(request):
+    title = 'The6ixClan: Deck Analysis Reports'
+    username = None
+    if request.user.is_authenticated:
+        username = request.user.username
+    report_list = Reports.objects.filter(user=request.user).order_by('-created')
+    for report in report_list:
+        create_time = report.created
+        diff = datetime.datetime.now().astimezone() - create_time
+        if diff.days == 1:
+            status = 'stale'
+        elif diff.days > 2:
+            status = 'expired'
+        elif diff.days < 1:
+            status = 'fresh'
+        if diff.seconds < (60 * 240):
+            pstatus = 'alive'
+        elif diff.seconds >= (60 * 240):
+            pstatus = 'dead'
+        task = TaskResult.objects.filter(task_id=report.task_id).first()
+        if status == 'expired':
+            report.delete()
+        elif status == 'stale':
+            report.status = 'Expired'
+            report.save()
+        elif pstatus == 'alive' and task == None:
+            report.status = 'Pending'
+            report.save()
+        elif pstatus == 'alive':
+            report.status = 'Completed'
+            report.save()
+        elif pstatus == 'dead':
+            report.status = 'Failed'
+            report.save()
+    report_list = Reports.objects.filter(user=request.user).order_by('-created')
+    if request.method == 'POST':
+        if request.POST.get('Return') == 'Return to Menu':
+            return redirect('clashstats-menu')
+        elif request.POST.get('Build') == 'Build a Report':
+            return redirect('clashstats-clanrept')
+    context = {
+        'title': title,
+        'report_list': report_list,
+    }
+    return render(request, 'clashstats/viewrepts.html', context)
 
-        if show_df == False:
-            REDIS_INSTANCE.set(redisChannel + 'cycle_counts', 0)
-            ret_val = {
-                'do_what': 'nothing',
-                'msg': [],
-            }
-            # user has not requested the dataframe info yet...do nothing
-            return JsonResponse(ret_val, status=200)
-        elif show_df == True:
-            data_ready = (REDIS_INSTANCE.get(redisChannel + 'reco_data_ready').decode('utf-8') == 'yes')
-            cnt = int(REDIS_INSTANCE.get(redisChannel + 'cycle_counts').decode('utf-8'))
-            REDIS_INSTANCE.set(redisChannel + 'cycle_counts', (cnt+1))
-            if data_ready is False:
-                msg = msgs[cnt % len(msgs)]
-                ret_val = {
-                    'do_what': 'wait',
-                    'msg': msg,
-                }
-                return JsonResponse(ret_val, status=200)
-            elif data_ready is True:
-                deck_improv = pickle.loads(REDIS_INSTANCE.get(redisChannel + 'ret_dict'))
-
-                try:
-                    home_card_list = deck_improv.get('home_card_list')
-                except:
-                    print(f'type: {type(deck_improv)} ')
-                single_only_len = deck_improv.get('len_first_list')
-                double_only_len = deck_improv.get('len_full_list') - single_only_len
-                single_probs = deck_improv.get('new_ests')[range(0, single_only_len)]
-                single_top_10 = np.argsort(single_probs)[::-1][range(0, 10)]
-                single_rem_add = deck_improv.get('explan_ind')[0:single_only_len]
-                single_rem = [home_card_list[single_rem_add[rem_item][0][0][0]] for rem_item in single_top_10]
-                single_add = [home_card_list[single_rem_add[rem_item][1][0][0]] for rem_item in single_top_10]
-
-                double_probs = deck_improv.get('new_ests')[range(single_only_len, (single_only_len + double_only_len))]
-                double_top_40 = np.argsort(double_probs)[::-1][range(0, 40)]
-                double_rem_add = deck_improv.get('explan_ind')[single_only_len:(single_only_len + double_only_len)]
-                double_rem_one = [home_card_list[double_rem_add[rem_item][0][0][0]] for rem_item in double_top_40]
-                double_rem_two = [home_card_list[double_rem_add[rem_item][0][0][1]] for rem_item in double_top_40]
-                double_add_one = [home_card_list[double_rem_add[rem_item][1][0][0]] for rem_item in double_top_40]
-                double_add_two = [home_card_list[double_rem_add[rem_item][1][0][1]] for rem_item in double_top_40]
-
-                single_df = pd.DataFrame(single_rem, columns=['Remove Card'])
-                single_df['Add Card'] = single_add
-                single_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(single_probs[val] * 100)
-                                                                for val in single_top_10])
-
-                singleStats = single_df.to_html(index=False, classes='table table-striped table-hover',
-                                                header="true", justify="center", escape=False)
-
-                double_df = pd.DataFrame(double_rem_one, columns=['Remove Card One'])
-                double_df['Remove Card Two'] = double_rem_two
-                double_df['Add Card One'] = double_add_one
-                double_df['Add Card Two'] = double_add_two
-                double_df['Anticipated Win Ratio'] = pd.Series(["{0:.1f}%".format(double_probs[val] * 100)
-                                                                for val in double_top_40])
-
-                doubleStats = double_df.to_html(index=False, classes='table table-striped table-hover',
-                                                header="true", justify="center", escape=False)
-
-                msg = "Your data is ready now..."
-                ret_val = {
-                    'do_what': 'complete',
-                    'msg': msg,
-                    'singleS': singleStats,
-                    'doubleS': doubleStats,
-                }
-                return JsonResponse(ret_val, status=200)
-    return JsonResponse({}, status=400)
+def viewrept(request, pk):
+    title = 'The6ixClan: Game Statistic Deep Dive'
+    context = {
+        'title': title
+    }

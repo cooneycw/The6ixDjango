@@ -1,0 +1,51 @@
+{% extends "The6ixDjango/base_enh.html" %}
+{% load crispy_forms_tags %}
+{% load static %}
+    <link rel="stylesheet" href="{% static 'The6ixDjango/Navigation-with-Button.css' %}">
+    <link rel="stylesheet" href="{% static 'The6ixDjango/styles.css' %}">
+{% block content %}
+    <div id="welcome_to_the_six">
+        <div id="jumbotron" class="p-5 mb-4 bg-light round-3" style="background: linear-gradient(51deg, rgb(255,255,255) 0%, rgb(255,255,255) 2%, rgb(206,56,136) 99%, white), rgb(218,221,160);">
+            <div class="container-fluid py-0" style="*padding-top: 2px; text-align: left">
+                    <h2 style="box-shadow: 0px 0px;">Deck Analysis Reports</h2>
+                <hr/>
+                <div class="content-section">
+                    <div class="form-check mt-2 mb-2" style="background: linear-gradient(231deg, rgb(255,255,255) 0%, rgb(255,255,255) 2%, rgb(206,56,136) 90%)">
+                        <form action="." method="POST">
+                            {% csrf_token %}
+                                <div class="span-2 mt-2 mb-2" style="width: 25%">
+                                    <br>
+                                    <input class="btn btn-light action-button" type="Submit" name="Refresh" value="Refresh" style="color: rgb(255,255,255); background: #3f66e7;"></input>
+                                    <input class="btn btn-light action-button" type="Submit" name="Build" value="Build a Report" style="background: rgb(152,255,179);"></input>
+                                    <input class="btn btn-light action-button" type="Submit" name="Return" value="Return to Menu" style="background: rgb(255, 93, 5);"></input>
+                                </div>
+                            <br>
+                        </form>
+                    </div>
+                    <hr/>
+            </div>
+        </div>
+    </div>
+    <div>
+        <h2>Deck Analysis Report List:</h2>
+        <hr/>
+        <table style="width:100%">
+        <tr>
+            <th>Report Id</th><th>Report Name</th><th>Created</th><th>Type</th><th>Status</th>
+        </tr>
+        {% for report in report_list %}
+            <tr>
+                {%  if report.status == 'Completed' %}
+                <td><a href=" {% url 'clashstats-viewrept' pk=report.id %}">{{ report.id }}</a></td>
+                {% else %}
+                <td>{{ report.id }}</td>
+                {%  endif %}
+                <td>{{ report.sim_name }}</td>
+                <td>{{ report.created }} </td>
+                <td>{{ report.sim_type }}</td>
+                <td>{{ report.status }}</td>
+            </tr>
+        {% endfor %}
+        </table>
+    </div>
+{% endblock content %}
