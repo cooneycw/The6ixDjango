@@ -1,7 +1,7 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
     CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, STATS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
-    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, MIN_MAX_SCALER, TF_MODEL, STACKED_MODEL, \
-    LG_MODEL, GN_MODEL, REDIS_INSTANCE
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, STACKED_MODEL, \
+    REDIS_INSTANCE
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 from math import comb
@@ -17,7 +17,6 @@ import pandas as pd
 import numpy as np
 import sys
 import xgboost as xgb
-import tensorflow as tf
 
 
 def rowIndex(row):
@@ -27,34 +26,6 @@ def rowIndex(row):
 
 def mid(s, offset, amount):
     return s[offset:offset+amount]
-
-
-def get_segment(deck_in):
-    df_out = deck_in
-    deck_df = get_elixr(deck_in)
-
-    segment_cols = SEGMENT_COLS.copy()
-
-    deck = deck_df[segment_cols]
-
-    data_scaled = deck
-    data_scaled = pd.DataFrame(data_scaled, columns=deck.columns)
-
-    CLUSTERING.labels_ = CLUSTERING.predict(data_scaled)
-    post_clust_data_mapping = {case: cluster for case, cluster in enumerate(CLUSTERING.labels_)}
-
-    H_mapping = {case: cluster for case,
-                                   cluster in enumerate(HCLUSTERING.labels_)}
-    final_mapping = {case: H_mapping[post_clust_data_mapping[case]]
-                     for case in post_clust_data_mapping}
-
-    final_mapping_ls = list(final_mapping.values())
-    segs = [int(x + 1) for x in final_mapping_ls]
-    df_out.loc[:, 'home_seg'] = segs
-
-    df_out['home_seg'] = df_out['home_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
-    df_out['home_seg'] = df_out['home_seg'].astype(pd.Int32Dtype())
-    return df_out
 
 
 def get_elixr(deck_in):
@@ -165,6 +136,7 @@ def get_async_games(member):
     itm = list()
     itm.append(base_url)
     itm.append(headers)
+
 
     def call_clash(call_var):
         base_url = call_var[0]
@@ -563,7 +535,6 @@ def get_segment(deck_in):
     segs = [int(x + 1) for x in final_mapping_ls]
     df_out.loc[:, 'home_seg'] = segs
 
-
     df_out['home_seg'] = df_out['home_seg'].map(NEW_SEGMENT_MAP).fillna(int(1))
     df_out['home_seg'] = df_out['home_seg'].astype(pd.Int16Dtype())
     return df_out
@@ -878,32 +849,29 @@ def predict(base_df, base_stats_df, stats_sel_cols, lr_only):
     if lr_only == False:
         base_xg_inp = xgb.DMatrix(data=base_stats_df.values, feature_names=stats_sel_cols)
         base_lr_test = LR_MODEL.predict_proba(base_df)
-        base_lg_test = LG_MODEL.predict_proba(base_stats_df[stats_sel_cols])
-        base_gn_test = GN_MODEL.predict_proba(base_df)
         base_xg_test = XGB_MODEL.predict(base_xg_inp)
-        base_stats_df_minmax = MIN_MAX_SCALER.transform(base_stats_df.astype(np.float32))
-        base_nn_test = TF_MODEL.predict(base_stats_df_minmax)
 
-        base_val = np.concatenate([base_nn_test[:, 1:2], base_lr_test[:, 1:2]], axis=1)
-        base_val = np.concatenate([base_val, base_lg_test[:, 1:2]], axis=1)
-        base_val = np.concatenate([base_val, base_gn_test[:, 1:2]], axis=1)
-        base_val = np.concatenate([base_val, base_xg_test.reshape(-1, 1)], axis=1)
+        base_val = np.concatenate([base_lr_test[:, 1:2], base_xg_test.reshape(-1, 1)], axis=1)
+        # base_val = np.concatenate([base_nn_test[:, 1:2], base_lr_test[:, 1:2]], axis=1)
+        # base_val = np.concatenate([base_val, base_lg_test[:, 1:2]], axis=1)
+        # base_val = np.concatenate([base_val, base_gn_test[:, 1:2]], axis=1)
+        # base_val = np.concatenate([base_val, base_xg_test.reshape(-1, 1)], axis=1)
 
-        i = 0
-        new_base_val = np.zeros((base_val.shape[0], base_val.shape[1] * 4))
-        while i < len(new_base_val):
-            if base_stats_df['seg001'].iloc[i] == 1:
-                if base_stats_df['a_seg001'].iloc[i] == 1:
-                    new_base_val[i, 0:5] = base_val[i, 0:5]
-                else:
-                    new_base_val[i, 5:10] = base_val[i, 0:5]
-            else:
-                if base_stats_df['a_seg001'].iloc[i] == 1:
-                    new_base_val[i, 10:15] = base_val[i, 0:5]
-                else:
-                    new_base_val[i, 15:20] = base_val[i, 0:5]
-            i += 1
-        probability_est = STACKED_MODEL.predict_proba(new_base_val)[:, 1]
+        # i = 0
+        # new_base_val = np.zeros((base_val.shape[0], base_val.shape[1] * 4))
+        # while i < len(new_base_val):
+        #     if base_stats_df['seg001'].iloc[i] == 1:
+        #         if base_stats_df['a_seg001'].iloc[i] == 1:
+        #             new_base_val[i, 0:5] = base_val[i, 0:5]
+        #         else:
+        #             new_base_val[i, 5:10] = base_val[i, 0:5]
+        #     else:
+        #         if base_stats_df['a_seg001'].iloc[i] == 1:
+        #             new_base_val[i, 10:15] = base_val[i, 0:5]
+        #         else:
+        #             new_base_val[i, 15:20] = base_val[i, 0:5]
+        #     i += 1
+        probability_est = STACKED_MODEL.predict_proba(base_val)[:, 1]
     else:
         probability_est = LR_ANOVA.predict_proba(base_df)[:, 1]
     return probability_est
@@ -923,8 +891,8 @@ def auto_reco(input_df, redis_channel, lr_only):
     away_card_list = [('a_' + card) for card in home_card_list]
     card_list_compare = [card.replace('_', ' ') for card in home_card_list]
     # adjustment for Pekka / mini-Pekka
-    card_list_compare[75] = 'P.E.K.K.A'  # 107 amend if new cards inserted
-    card_list_compare[66] = 'Mini P.E.K.K.A'
+    card_list_compare[75] = 'P.E.K.K.A'  # 108 amend if new cards inserted
+    card_list_compare[67] = 'Mini P.E.K.K.A'
 
     analysis_sel_cols = ANALYSIS_SEL_COLS.copy()
     stats_sel_cols = STATS_SEL_COLS.copy()

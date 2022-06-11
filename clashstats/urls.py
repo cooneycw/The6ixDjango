@@ -13,6 +13,7 @@ urlpatterns = [
     path('clashstats/membslct/', views.membslct, name='clashstats-membslct'),
     path('clashstats/membrept/', views.membrept, name='clashstats-membrept'),
     path('clashstats/win_deep/<int:pk>/', views.win_deep, name='clashstats-win_deep'),
+    path('clashstats/highwindeck/', views.highwindeck, name='clashstats-highwindeck'),
     path('clashstats/viewrepts/', views.viewrepts, name='clashstats-viewrepts'),
     path('clashstats/viewreport/<uuid:pk>/', views.viewrept, name='clashstats-viewrept'),
     ]

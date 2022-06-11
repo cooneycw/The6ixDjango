@@ -3,7 +3,7 @@ from django.http import HttpResponseNotFound, JsonResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm, winDeepForm
-from .scoring import get_segment, get_cards, get_clan, auto_pull, auto_analyze, auto_reco, mid, rowIndex
+from .scoring import get_segment, get_elixr, get_clan, auto_pull, auto_analyze, auto_reco, mid, rowIndex
 from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL, REDIS_INSTANCE
 from .models import Reports
 from django_celery_results.models import TaskResult
@@ -78,8 +78,14 @@ def cards(request):
                 curr_card = df.columns[8 + i]
                 card_name.append(curr_card)
                 card_games.append(sum(games * df[quart_filt].iloc[:, df.columns.get_loc(curr_card)]))
-                card_use_rate.append(card_games[i] / sum(games))
-                card_win_ratio.append(sum(wins * df[quart_filt].iloc[:, df.columns.get_loc(curr_card)]) / card_games[i])
+                games_divisor = sum(games)
+                if games_divisor == 0:
+                    games_divisor = 1
+                card_use_rate.append(card_games[i] / games_divisor)
+                card_games_divisor = card_games[i]
+                if card_games_divisor == 0:
+                    card_games_divisor = 1
+                card_win_ratio.append(sum(wins * df[quart_filt].iloc[:, df.columns.get_loc(curr_card)]) / card_games_divisor)
                 i += 1
 
             sum_df = pd.DataFrame(card_name, columns=['card_name'])
@@ -517,6 +523,7 @@ def findsegt(request):
             for card in cards:
                 deck_df.loc[0, card_list[card][1]] = 1
 
+            deck_df = get_elixr(deck_df)
             deck_df = get_segment(deck_df)
             segmentID = int(deck_df['home_seg'])
             request.session['find_seg_deck_df'] = deck_df.to_json()
@@ -1026,6 +1033,14 @@ def viewrepts(request):
         'report_list': report_list,
     }
     return render(request, 'clashstats/viewrepts.html', context)
+
+
+def highwindeck(request):
+    title = 'The6ixClan: Model Identified High Win Ratio Decks'
+    context = {
+        'title': title
+    }
+
 
 def viewrept(request, pk):
     title = 'The6ixClan: Game Statistic Deep Dive'
