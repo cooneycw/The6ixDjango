@@ -10,6 +10,7 @@ class Reports(models.Model):
     status = models.CharField(max_length=12)
     created = models.DateTimeField()
     completed = models.IntegerField(default=0)
+    perc_complete = models.IntegerField(default=0)
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, blank=True, editable=False)
     id = models.UUIDField(default=uuid.uuid4, unique=True, primary_key=True, editable=False)
 

@@ -1,13 +1,13 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseNotFound, JsonResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm, winDeepForm
-from .scoring import get_segment, get_elixr, get_clan, auto_pull, auto_analyze, auto_reco, mid, rowIndex
-from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL, REDIS_INSTANCE
+from .score_utils import get_segment, get_elixr, get_clan, auto_pull, auto_analyze, mid, rowIndex
+from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL
 from .models import Reports
 from django_celery_results.models import TaskResult
-from multiprocessing.pool import ThreadPool
+from .tasks import analyze_deck
 import pandas as pd
 import numpy as np
 import pickle
@@ -881,68 +881,17 @@ def win_deep(request, pk):
             return redirect('clashstats-membrept')
         elif request.POST.get('Return to Menu') == 'Return to Menu':
             return redirect('clashstats-menu')
-        elif (request.POST.get('Perform Logistic Card Analysis') == 'Perform Logistic Card Analysis') or \
-             (request.POST.get('Perform Stacked Card Analysis') == 'Perform Stacked Card Analysis'):
-            lr_only = False
-            if request.POST.get('Perform Logistic Card Analysis') == 'Perform Logistic Card Analysis':
-                lr_only = True
-            channel = str(games['home_tag'][0])
-            date_time = datetime.datetime.utcnow().strftime("%Y/%m/%d %H:%M:%S")
-            REDIS_INSTANCE.set(channel, date_time)
-            pool = ThreadPool(processes=1)
+        elif (request.POST.get('Build Deck Analysis') == 'Build Deck Analysis'):
+            # report_id = analyze_deck.delay(games.iloc[[pk - 1]])
+            report_name = games.iloc[[pk-1]]['home_name'].to_string(index=False) + ' vs. ' + games.iloc[[pk-1]]['away_name'].to_string(index=False)
+            report_id = analyze_deck.delay(games.iloc[[pk - 1]])
 
-            async_result = pool.apply_async(auto_reco, args=(games.iloc[[pk - 1]], channel, lr_only, ))  # tuple of args for foo
-            #cwc = auto_reco(games.iloc[[pk-1]], channel) # for testing only
-            show_df = True
-            request.session['win_deep_show_df'] = show_df
-            request.session['win_deep_redis_channel'] = channel
-
-            r1 = results.get("intercept")
-            r2 = r1 * results.get("lseason_trophies_impact")
-            r3 = r1 * (1 + results.get("lseason_trophies_impact")) * results.get("bseason_trophies_impact")
-            r4 = r1 * (1 + results.get("lseason_trophies_impact")) * (
-                    1 + results.get("bseason_trophies_impact")) * results.get("exp_trophies_impact")
-            r5 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (
-                    1 + results.get("exp_trophies_impact")) * results.get("level_trophies_impact")
-            r6 = r1 * (1 + results.get("lseason_trophies_impact")) * (1 + results.get("bseason_trophies_impact")) * (
-                    1 + results.get("exp_trophies_impact")) * (
-                         1 + results.get("level_trophies_impact")) * results.get("deck_impact")
-            r7 = r1 * (1 + results.get("deck_impact"))
-
-            context = {
-                'title': title,
-                'dyn_title': dyn_title,
-                'player_name': games.loc[(pk - 1), 'home_name'],
-                'away_name': games.loc[(pk - 1), 'away_name'],
-                'player_tag': mid(games.loc[(pk - 1), 'home_tag'], 1, 9).rstrip(),
-                'away_tag': mid(games.loc[(pk - 1), 'away_tag'], 1, 9).rstrip(),
-                'row_int': f'Starting estimate (regression intercept):',
-                'intercept': f'{results.get("intercept"):.1%}',
-                'cintercept': f'{r1:.1%}',
-                'row_lsg': f'{games.loc[(pk - 1), "home_name"]} last season gap to 5700',
-                'last_season_gap': f'{results.get("lseason_trophies_impact"):.1%}',
-                'clsg': f'{r2:.1%}',
-                'row_bsd': f'Best season difference',
-                'best_season_difference': f'{results.get("bseason_trophies_impact"):.1%}',
-                'cbsd': f'{r3:.1%}',
-                'row_ted': f'Tower experience level difference',
-                'tower_experience_difference': f'{results.get("exp_trophies_impact"):.1%}',
-                'cted': f'{r4:.1%}',
-                'row_ced': f'Card experience level difference',
-                'card_experience_difference': f'{results.get("level_trophies_impact"):.1%}',
-                'cced': f'{r5:.1%}',
-                'row_ded': f'Deck advantage / disadvantage',
-                'deck_experience_difference': f'{results.get("deck_impact"):.1%}',
-                'cded': f'{r6:.1%}',
-                'row_fin': f'Estimated total advantage / disadvantage:',
-                'cfin': f'{results.get("base_est"):.1%}',
-                'row_sup': f'Normalized "deck only" advantage / disadvantage:',
-                'csup': f'{r7:.1%}',
-                'show_df': show_df,
-                'form': form,
-            }
-            return render(request, 'clashstats/win_deep.html', context)
-
+            created = datetime.datetime.now()
+            report = Reports(task_id=report_id.task_id, rept_name=report_name[0:36], rept_type='deck opt', status='submitted',
+                             created=created, user=request.user, )
+            report.save()
+            messages.success(request, f'Your deck analysis has been submitted. Report will be available for 24hrs.')
+            return redirect('clashstats-viewrepts')
 
     r1 = results.get("intercept")
     r2 = r1 * results.get("lseason_trophies_impact")
@@ -1044,6 +993,60 @@ def highwindeck(request):
 
 def viewrept(request, pk):
     title = 'The6ixClan: Game Statistic Deep Dive'
+    report = get_object_or_404(Reports, id=pk)
+    if request.user.is_authenticated:
+        username = request.user.username
+    show_df = False
+    table_data = None
+    if request.method == 'POST':
+        if request.POST.get('Back') == 'Back':
+            return redirect('clashstats-viewrepts')
+        elif request.POST.get('Return') == 'Return to Menu':
+            return redirect('clashstats-menu')
+
+    task = TaskResult.objects.filter(task_id=report.task_id).first()
+    show_df = False
+    if task == None:
+        messages.warning(request, f'Report processing has not yet started. Report waiting in queue.')
+    elif task.status == 'SUCCESS':
+        result = analyze_deck.AsyncResult(report.task_id).get()
+        show_df = True
+
+    elif task.status == 'FAILURE':
+        result = None
+    else:
+        result = None
+
+    if show_df is True:
+        all_ests = result['all_ests']
+        home_card_list = result['home_card_list']
+        out_df = pd.DataFrame(columns=['probability_win', 'original_deck', 'modifications',
+                                       'card_01', 'card_02', 'card_03', 'card_o4',
+                                       'card_05', 'card_06', 'card_07', 'card_08'])
+        out_df['probability_win'] = pd.Series(["{0:,.1f}%".format(100*val) for val in all_ests[:, (len(home_card_list))]])
+        out_df['original_deck'] = ' '
+        out_df['original_deck'].iloc[0] = '*'
+        orig_deck = None
+        for i, row in enumerate(all_ests):
+            if i == 0:
+                orig_deck = row[range(0, len(home_card_list))]
+            out_df['modifications'].iloc[i] = int(0.5 * sum(orig_deck != row[range(0, len(home_card_list))]))
+            home_away = np.asarray(np.nonzero(row[range(0, len(home_card_list))])).flatten()
+            j = 0
+            while j < 8:
+                out_df.iloc[i, 3+j] = home_card_list[home_away[j]]
+                j += 1
+
+        out_df = out_df.sort_values(by=['original_deck', 'probability_win'], ascending=[False, False])
+
+        table_data = out_df.to_html(index=False, classes='table table-striped table-hover',
+                                    header="true",
+                                    justify="center")
+
     context = {
-        'title': title
+        'title': title,
+        'report': report,
+        'show_df': show_df,
+        'table_data': table_data,
     }
+    return render(request, 'clashstats/viewrept.html', context)
