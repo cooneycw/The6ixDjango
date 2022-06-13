@@ -32,7 +32,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    command: celery -A PriceOptimization worker -l info
+    command: celery -A The6ix worker -l info
     volumes:
       - .:/PriceOptimization
     depends_on:
