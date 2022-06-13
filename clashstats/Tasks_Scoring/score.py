@@ -24,7 +24,7 @@ def deck_analyzer(game_df):
 
     sample_df = SAMPLE_DECKS.copy()
 
-    away_sample_df = sample_df.loc[:, away_card_list].sample(frac=0.0025)
+    away_sample_df = sample_df.loc[:, away_card_list].sample(frac=0.0035)
     del sample_df
 
     all_cards = home_card_list.copy()
@@ -53,7 +53,7 @@ def deck_analyzer(game_df):
 
         next_rem, next_add, next_explan, next_decks = modify_decks(home_away[0:8], away, card_cnt, 1)
         next_est = score_decks(next_decks, away_sample_df, all_cards, card_cnt, home_card_list)
-        top_next = (-next_est[:, card_cnt]).argsort()[:10]
+        top_next = (-next_est[:, card_cnt]).argsort()[:15]
 
         all_ests = np.append(all_ests, next_est[top_next, :], axis=0)
 

@@ -8,7 +8,7 @@ from .Tasks_Scoring.score import deck_analyzer
 @app.task(name='clashstats.tasks.scoring')
 def analyze_deck(game_df):
     results = None
-    timeout = (60 * 10)
+    timeout = (60 * 20)
     have_lock = False
     my_lock = REDIS_INSTANCE.lock(REDIS_LOCK_KEY, timeout=timeout)
     while not have_lock:
