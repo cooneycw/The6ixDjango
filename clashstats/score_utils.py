@@ -959,9 +959,8 @@ def score_decks(new_decks, away_sample_df, all_cards, card_cnt, home_card_list):
             outcome_est[row, 1 + card_cnt] = np.var(base_est[base_inds])
             j += 1
         if (min(ind) % 100) == 0:
-            print(f'Datetime: {datetime.datetime.now()}')
-            print(
-                f'i:{i}  {1 + max(ind)} rows completed.  Latest outcome_est: {outcome_est[max(ind), card_cnt]}  Latest variance_est: {outcome_est[max(ind), card_cnt + 1]}  Max outcome_est: {np.max(outcome_est[:, card_cnt])}')
+            # print(f'Datetime: {datetime.datetime.now()}')
+            # print(f'i:{i}  {1 + max(ind)} rows completed.  Latest outcome_est: {outcome_est[max(ind), card_cnt]}  Latest variance_est: {outcome_est[max(ind), card_cnt + 1]}  Max outcome_est: {np.max(outcome_est[:, card_cnt])}')
             out_df = pd.DataFrame(outcome_est[0:max(ind), :], columns=header).sort_values('average', ascending=False)
         i += 1
 

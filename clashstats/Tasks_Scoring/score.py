@@ -45,10 +45,10 @@ def deck_analyzer(game_df):
     top_impr = (-outcome_est[:, card_cnt]).argsort()[:10]
 
     all_ests = np.append(base_est, outcome_est[top_impr, :], axis=0)
-    for impr in top_impr:
+    for k, impr in enumerate(top_impr):
         home_away = np.asarray(np.nonzero(new_decks[impr, range(0, card_cnt)])).flatten()
         print(f'iterating through: {outcome_est[impr, card_cnt]}')
-        print(f'{[home_card_list[x] for x in home_away[0:8].tolist()]}')
+        print(f'secondary card: {k} - {[home_card_list[x] for x in home_away[0:8].tolist()]}')
 
         next_rem, next_add, next_explan, next_decks = modify_decks(home_away[0:8], away, card_cnt, 1)
         next_est = score_decks(next_decks, away_sample_df, all_cards, card_cnt, home_card_list)
