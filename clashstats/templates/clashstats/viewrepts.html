@@ -31,7 +31,7 @@
         <hr/>
         <table style="width:100%">
         <tr>
-            <th>Report Id</th><th>Report Name</th><th>Created</th><th>Type</th><th>Status</th>
+            <th>Report Id</th><th>Report Name</th><th>Created</th><th>Type</th><th>Status</th><th>% Completed</th>
         </tr>
         {% for report in report_list %}
             <tr>
@@ -44,6 +44,7 @@
                 <td>{{ report.created }} </td>
                 <td>{{ report.rept_type }}</td>
                 <td>{{ report.status }}</td>
+                <td>{{ report.completed }}</td>
             </tr>
         {% endfor %}
         </table>

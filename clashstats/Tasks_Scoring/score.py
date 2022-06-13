@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import datetime
+import time
 
 from The6ix.settings import ANALYSIS_SEL_COLS, STATS_SEL_COLS, SAMPLE_DECKS
 from clashstats.models import Reports
@@ -9,8 +10,12 @@ from clashstats.score_utils import get_cards, get_segment, get_segment_away, get
                                     code_features, code_home_features, code_away_features, predict, modify_decks, score_decks
 
 
-def deck_analyzer(game_df):
-
+def deck_analyzer(game_df, task_id):
+    time.sleep(5)
+    report = Reports.objects.filter(task_id=task_id).first()
+    print(f'task_id: {report.task_id, report.created}')
+    report.completed = 1
+    report.save()
     cards = get_cards()
     cards.sort_values(by=['card'], inplace=True)
     elixr = cards['elixr']
@@ -46,6 +51,10 @@ def deck_analyzer(game_df):
     top_impr = (-outcome_est[:, card_cnt]).argsort()[:10]
 
     all_ests = np.append(base_est, outcome_est[top_impr, :], axis=0)
+    start = 10
+    report.completed = start
+    report.save()
+    perc_incr = (100 - start) * 1 / len(top_impr)
     for k, impr in enumerate(top_impr):
         home_away = np.asarray(np.nonzero(new_decks[impr, range(0, card_cnt)])).flatten()
         print(f'datetime: {datetime.datetime.now()} iterating through: {outcome_est[impr, card_cnt]}')
@@ -53,10 +62,15 @@ def deck_analyzer(game_df):
 
         next_rem, next_add, next_explan, next_decks = modify_decks(home_away[0:8], away, card_cnt, 1)
         next_est = score_decks(next_decks, away_sample_df, all_cards, card_cnt, home_card_list)
+        start = start + perc_incr
+        report.completed = min(start, 100)
+        report.save()
         top_next = (-next_est[:, card_cnt]).argsort()[:15]
 
         all_ests = np.append(all_ests, next_est[top_next, :], axis=0)
 
+    report.completed = 100
+    report.save()
     results = {
         'all_ests': all_ests,
         'home_card_list': home_card_list

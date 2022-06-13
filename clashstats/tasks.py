@@ -23,9 +23,10 @@ from .Tasks_Scoring.score import deck_analyzer
 #     return results
 
 
-@app.task(name='clashstats.tasks.scoring')
-def analyze_deck(game_df):
+@app.task(name='clashstats.tasks.scoring', bind=True)
+def analyze_deck(self, game_df):
     results = None
-    print('start deck analysis')
-    results = deck_analyzer(game_df)
+    task_id = self.request.id
+    results = deck_analyzer(game_df, task_id)
+
     return results
