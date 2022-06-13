@@ -890,7 +890,7 @@ def win_deep(request, pk):
             report = Reports(task_id=report_id.task_id, rept_name=report_name[0:36], rept_type='deck opt', status='submitted',
                              created=created, user=request.user, )
             report.save()
-            messages.success(request, f'Your deck analysis has been submitted. Report will be available for 24hrs.')
+            messages.success(request, f'Your deck analysis has been submitted and will take approx 20 mins to run. Report will be available for 24hrs.')
             return redirect('clashstats-viewrepts')
 
     r1 = results.get("intercept")
