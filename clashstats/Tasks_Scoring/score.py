@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import datetime
 
 from The6ix.settings import ANALYSIS_SEL_COLS, STATS_SEL_COLS, SAMPLE_DECKS
 from clashstats.models import Reports
@@ -47,7 +48,7 @@ def deck_analyzer(game_df):
     all_ests = np.append(base_est, outcome_est[top_impr, :], axis=0)
     for k, impr in enumerate(top_impr):
         home_away = np.asarray(np.nonzero(new_decks[impr, range(0, card_cnt)])).flatten()
-        print(f'iterating through: {outcome_est[impr, card_cnt]}')
+        print(f'datetime: {datetime.datetime.now()} iterating through: {outcome_est[impr, card_cnt]}')
         print(f'secondary card: {k} - {[home_card_list[x] for x in home_away[0:8].tolist()]}')
 
         next_rem, next_add, next_explan, next_decks = modify_decks(home_away[0:8], away, card_cnt, 1)
