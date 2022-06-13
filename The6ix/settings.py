@@ -16,7 +16,6 @@ import ast
 import socket
 import os
 import redis
-import tensorflow as tf
 from joblib import load
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
