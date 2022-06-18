@@ -954,8 +954,6 @@ def viewrepts(request):
             status = 'fresh'
         if diff.seconds < (60 * 240):
             pstatus = 'alive'
-        elif diff.seconds >= (60 * 240):
-            pstatus = 'dead'
         task = TaskResult.objects.filter(task_id=report.task_id).first()
         if status == 'expired':
             report.delete()
@@ -967,9 +965,6 @@ def viewrepts(request):
             report.save()
         elif pstatus == 'alive':
             report.status = 'Completed'
-            report.save()
-        elif pstatus == 'dead':
-            report.status = 'Failed'
             report.save()
     report_list = Reports.objects.filter(user=request.user).order_by('-created')
     if request.method == 'POST':
