@@ -21,7 +21,7 @@ from joblib import load
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-STAT_DATE = 'June 10, 2022'
+STAT_DATE = 'June 16, 2022'
 
 IPADD = socket.gethostbyname(socket.gethostname())
 ec2 = True
