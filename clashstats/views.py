@@ -639,8 +639,8 @@ def clanrept(request):
         if request.POST.get("Pull Recent Stats for 'The6ix' Clan") == "Pull Recent Stats for 'The6ix' Clan":
             request.session['clan'] = '#YP8GPGYQ'
             return redirect('clashstats-membslct')
-        if request.POST.get("Pull Recent Stats for 'YT: Ryley CR' Clan") == "Pull Recent Stats for 'YT: Ryley CR' Clan":
-            request.session['clan'] = '#Q9CRG299'
+        if request.POST.get("Pull Recent Stats for 'Honeypie' Clan") == "Pull Recent Stats for 'Honeypie' Clan":
+            request.session['clan'] = '#Q2JR8C9V'
             return redirect('clashstats-membslct')
         if request.POST.get("Pull Recent Stats for '50 Stars' Clan") == "Pull Recent Stats for '50 Stars' Clan":
             request.session['clan'] = '#QV2VP28L'
