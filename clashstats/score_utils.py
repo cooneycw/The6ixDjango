@@ -1,6 +1,8 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
     CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, STATS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
-    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, STACKED_MODEL
+    ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, STACKED_MODEL, CARD_OBJ_GET_CARDS, \
+    CARD_LIST_COMPARE_01, CARD_LIST_COMPARE_02
+
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 import requests
@@ -165,13 +167,15 @@ def get_async_games(member):
     i = 0
 
     # print(f'Processing {max_i} players...')
+
+
     home_card_list = list(home_cards.columns)
     away_card_list = [('a_' + card) for card in home_card_list]
 
     card_list_compare = [card.replace('_', ' ') for card in home_card_list]
     # adjustment for Pekka / mini-Pekka
-    card_list_compare[75] = 'P.E.K.K.A'  # 107 amend if new cards inserted
-    card_list_compare[67] = 'Mini P.E.K.K.A'
+    card_list_compare[CARD_LIST_COMPARE_01] = 'P.E.K.K.A'  # 107 amend if new cards inserted
+    card_list_compare[CARD_LIST_COMPARE_02] = 'Mini P.E.K.K.A'
     elixr_for_mult = elixr.values
     home_tag = list()
     home_name = list()

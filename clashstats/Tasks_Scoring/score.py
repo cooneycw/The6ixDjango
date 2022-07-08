@@ -3,7 +3,7 @@ import numpy as np
 import datetime
 import time
 
-from The6ix.settings import ANALYSIS_SEL_COLS, STATS_SEL_COLS, SAMPLE_DECKS
+from The6ix.settings import ANALYSIS_SEL_COLS, STATS_SEL_COLS, SAMPLE_DECKS, CARD_LIST_COMPARE_01, CARD_LIST_COMPARE_02
 from clashstats.models import Reports
 from clashstats.score_utils import get_cards, get_segment, get_segment_away, get_elixr, get_elixr_away, add_trophs, \
                                     add_segments_home, add_segments_away, add_elixir_home, add_elixir_away, \
@@ -24,8 +24,8 @@ def deck_analyzer(game_df, task_id):
     away_card_list = [('a_' + card) for card in home_card_list]
     card_list_compare = [card.replace('_', ' ') for card in home_card_list]
     # adjustment for Pekka / mini-Pekka
-    card_list_compare[75] = 'P.E.K.K.A'  # 108 amend if new cards inserted
-    card_list_compare[67] = 'Mini P.E.K.K.A'
+    card_list_compare[CARD_LIST_COMPARE_01] = 'P.E.K.K.A'  # 108 amend if new cards inserted
+    card_list_compare[CARD_LIST_COMPARE_02] = 'Mini P.E.K.K.A'
 
     sample_df = SAMPLE_DECKS.copy()
 

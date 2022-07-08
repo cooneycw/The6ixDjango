@@ -15,13 +15,14 @@ from .secrets import get_secrets
 import ast
 import socket
 import os
+import boto3
+import pickle
 import redis
 from joblib import load
 
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-STAT_DATE = 'June 16, 2022'
 
 IPADD = socket.gethostbyname(socket.gethostname())
 ec2 = True
@@ -112,6 +113,7 @@ CELERY_RESULT_BACKEND = secret_dict['CELERY_RESULT_BACKEND']
 CELERY_RESULT_SERIALIZER = 'pickle'
 CELERY_TASK_SERIALIZER = 'pickle'
 CELERY_ACCEPT_CONTENT = ['pickle']
+S3_BUCKET = secret_dict['S3_BUCKET']
 
 if DEBUG==True:
     POSTGRES_PORT = secret_dict['POSTGRES_PORT_DEV']
@@ -119,6 +121,7 @@ if DEBUG==True:
     CLASH_API = secret_dict['API_DEV']
     REDIS_HOST = secret_dict['REDIS_HOST_DEV']
     CELERY_BROKER_URL = secret_dict['CELERY_BROKER_URL_DEV']
+    S3_BUCKET = secret_dict['S3_BUCKET_DEV']
 
 CELERY_RESULT_BACKEND = 'django-db'
 
@@ -189,44 +192,51 @@ LOGIN_URL = 'login'
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-kmeans_name = STAT_FILES / 'pickles/kmeans.pickle'
-hclust_name = STAT_FILES / 'pickles/hclust.pickle'
-new_segment_map_name = STAT_FILES / 'pickles/new_segment_map.pickle'
-segment_cols_name = STAT_FILES / 'pickles/segment_cols'
-max_seg_name = STAT_FILES / 'pickles/max_seg'
-max_a_seg_name = STAT_FILES / 'pickles/max_a_seg'
-analysis_var_list_name = STAT_FILES / 'pickles/analysis_var_list'
-analysis_sel_cols_name = STAT_FILES / 'pickles/analysis_sel_cols'
-stats_sel_cols_name = STAT_FILES / 'pickles/stats_sel_cols'
-sample_decks_name = STAT_FILES / 'pickles/sample_df'
-lbounds_name = STAT_FILES / 'pickles/lbounds'
-ubounds_name = STAT_FILES / 'pickles/ubounds'
-elixr_lbounds_name = STAT_FILES / 'pickles/home_lbounds'
-elixr_ubounds_name = STAT_FILES / 'pickles/home_ubounds'
-lr_anova_name = STAT_FILES / 'pickles/lr_anova_model'
-lr_model_name = STAT_FILES / 'pickles/lr_outcome_model'
-lg_model_name = STAT_FILES / 'pickles/lg_outcome_model'
-gn_model_name = STAT_FILES / 'pickles/gn_outcome_model'
-xgb_model_name = STAT_FILES / 'pickles/xg_outcome_model'
-min_max_scaler_name = STAT_FILES / 'pickles/min_max_scaler'
-tf_model_name = STAT_FILES / 'pickles/nn_outcome_model'
-stacked_model_name = STAT_FILES / 'pickles/stacked_outcome_model'
+AWS_ACCESS = os.environ.get('aws_access_key_id')
+AWS_SECRET = os.environ.get('aws_secret_access_key')
+session_s3 = boto3.session.Session(
+                aws_access_key_id=AWS_ACCESS,
+                aws_secret_access_key=AWS_SECRET)
+s3_resource = session_s3.resource('s3')
 
-CLUSTERING = load(kmeans_name)
-HCLUSTERING = load(hclust_name)
-NEW_SEGMENT_MAP = load(new_segment_map_name)
-SEGMENT_COLS = load(segment_cols_name)
-MAX_SEG = load(max_seg_name)
-MAX_A_SEG = load(max_a_seg_name)
-ANALYSIS_VAR_LIST = load(analysis_var_list_name)
-ANALYSIS_SEL_COLS = load(analysis_sel_cols_name)
-SAMPLE_DECKS = load(sample_decks_name)
-STATS_SEL_COLS = load(stats_sel_cols_name)
-LBOUNDS = load(lbounds_name)
-UBOUNDS = load(ubounds_name)
-ELIXR_LBOUNDS = load(elixr_lbounds_name)
-ELIXR_UBOUNDS = load(elixr_ubounds_name)
-LR_ANOVA = load(lr_anova_name)
-LR_MODEL = load(lr_model_name)
-XGB_MODEL = load(xgb_model_name)
-STACKED_MODEL = load(stacked_model_name)
+key_01 = 'segment_summary'
+key_02 = 'setting_vars'
+key_03 = 'setting_vars_names'
+key_04 = 'card_obj_get_cards'
+key_05 = 'card_list_compare_01'
+key_06 = 'card_list_compare_02'
+key_07 = 'stat_date'
+key_list = [key_01, key_02, key_03, key_04, key_05, key_06, key_07]
+ret_dict = {}
+for item in key_list:
+    print(f'Getting: {item}')
+    s3_resource_object = s3_resource.Object(S3_BUCKET, item).get()
+    ret_dict[f'{item}'] = pickle.loads(s3_resource_object['Body'].read())
+
+segment_data = ret_dict[key_01]
+SEGMENT_SUMMARY = segment_data[0]
+SEGMENT_SUMMARY_QUART = segment_data[1]
+
+CARD_OBJ_GET_CARDS = ret_dict[key_04]
+CARD_LIST_COMPARE_01 = ret_dict[key_05]
+CARD_LIST_COMPARE_02 = ret_dict[key_06]
+STAT_DATE = ret_dict[key_07]
+
+ANALYSIS_SEL_COLS = ret_dict[key_02][0]
+ANALYSIS_VAR_LIST = ret_dict[key_02][1]
+MAX_SEG = ret_dict[key_02][2]
+HCLUSTERING = ret_dict[key_02][3]
+ELIXR_LBOUNDS = ret_dict[key_02][4]
+ELIXR_UBOUNDS = ret_dict[key_02][5]
+CLUSTERING = ret_dict[key_02][6]
+LBOUNDS = ret_dict[key_02][7]
+LR_ANOVA = ret_dict[key_02][8]
+LR_MODEL = ret_dict[key_02][9]
+MAX_A_SEG = ret_dict[key_02][10]
+NEW_SEGMENT_MAP = ret_dict[key_02][11]
+SAMPLE_DECKS = ret_dict[key_02][12]
+SEGMENT_COLS = ret_dict[key_02][13]
+STACKED_MODEL = ret_dict[key_02][14]
+STATS_SEL_COLS = ret_dict[key_02][15]
+UBOUNDS = ret_dict[key_02][16]
+XGB_MODEL = ret_dict[key_02][17]

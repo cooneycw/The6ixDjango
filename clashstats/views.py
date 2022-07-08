@@ -1,10 +1,12 @@
+import copy
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseNotFound, JsonResponse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from .forms import cardStatsForm, segmentForm, segmentsForm, cardsegtForm, findSegtForm, segmentFoundForm, clanReptForm, memberSlctForm, memberReptForm, winDeepForm
 from .score_utils import get_segment, get_elixr, get_clan, auto_pull, auto_analyze, mid, rowIndex
-from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL
+from The6ix.settings import STAT_DATE, STAT_FILES, BASE_URL, SEGMENT_SUMMARY, SEGMENT_SUMMARY_QUART, LBOUNDS, UBOUNDS
 from .models import Reports
 from django_celery_results.models import TaskResult
 from .tasks import analyze_deck
@@ -26,14 +28,10 @@ def cards(request):
 
     title = 'The6ixClan: Card Statistics'
     show_df = False
-    f_name = STAT_FILES / 'csv/segment_summary_quart.csv'
-    # pathname = os.path.abspath(os.path.dirname(__file__))
-    df = pd.read_csv(f_name, index_col=None)
+    df = copy.deepcopy(SEGMENT_SUMMARY_QUART)
 
-    pl_name = STAT_FILES / 'pickles/lbounds'
-    pu_name = STAT_FILES / 'pickles/ubounds'
-    lbounds = pickle.load(open(pl_name, "rb"))
-    ubounds = pickle.load(open(pu_name, "rb"))
+    lbounds = copy.deepcopy(LBOUNDS)
+    ubounds = copy.deepcopy(UBOUNDS)
 
     filter_name = []
     i = 0
@@ -141,9 +139,7 @@ def segment(request, pk):
 
     title = 'The6ixClan: Segment Close-Up'
     show_df = False
-    f_name = STAT_FILES / 'csv/segment_summary.csv'
-    # pathname = os.path.abspath(os.path.dirname(__file__))
-    df = pd.read_csv(f_name, index_col=None)
+    df = copy.deepcopy(SEGMENT_SUMMARY)
 
     segment_list = df['home_seg'].unique()
     segment_list = np.sort(segment_list)
@@ -199,9 +195,7 @@ def segments(request):
 
     title = 'The6ixClan: Card Statistics'
     show_df = False
-    f_name = STAT_FILES / 'csv/segment_summary_quart.csv'
-    # pathname = os.path.abspath(os.path.dirname(__file__))
-    df = pd.read_csv(f_name, index_col=None)
+    df = copy.deepcopy(SEGMENT_SUMMARY_QUART)
     all_segs = np.sort(df.seg_name.unique())
     seg_list = list(zip(pd.Series(range(len(all_segs))), all_segs))
 
@@ -357,9 +351,7 @@ def cardsegt(request):
 
     title = 'The6ixClan: Card Statistics'
     show_df = False
-    f_name = STAT_FILES / 'csv/segment_summary_quart.csv'
-    # pathname = os.path.abspath(os.path.dirname(__file__))
-    df = pd.read_csv(f_name, index_col=None)
+    df = copy.deepcopy(SEGMENT_SUMMARY_QUART)
 
     max_cards = len(df.columns) - (8 + 1)  # stats + home_elixr
     card_name = []
@@ -472,9 +464,7 @@ def findsegt(request):
     title = 'The6ixClan: Find a Segment'
     show_df = False
 
-    f_name = STAT_FILES / 'csv/segment_summary.csv'
-    # pathname = os.path.abspath(os.path.dirname(__file__))
-    df = pd.read_csv(f_name, index_col=None)
+    df = copy.deepcopy(SEGMENT_SUMMARY)
     deck_df = df.drop(df.columns[range(0, 7)], axis=1)
     deck_df.drop(deck_df.index, inplace=True)
     deck_df = deck_df.append(pd.Series(0, index=deck_df.columns), ignore_index=True)
@@ -556,10 +546,7 @@ def segtrslt(request, pk):
     deck_df = pd.read_json(request.session['find_seg_deck_df'], dtype=False)
     elixr = deck_df.home_elixr.iloc[0]
 
-    f_name = STAT_FILES / 'csv/segment_summary.csv'
-    # pathname = os.path.abspath(os.path.dirname(__file__))
-
-    df = pd.read_csv(f_name, index_col=None)
+    df = copy.deepcopy(SEGMENT_SUMMARY)
 
     segment_list = df['home_seg'].unique()
     segment_list = np.sort(segment_list)
