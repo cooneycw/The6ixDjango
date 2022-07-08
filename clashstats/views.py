@@ -1,5 +1,4 @@
 import copy
-
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseNotFound, JsonResponse
 from django.contrib import messages
@@ -199,10 +198,8 @@ def segments(request):
     all_segs = np.sort(df.seg_name.unique())
     seg_list = list(zip(pd.Series(range(len(all_segs))), all_segs))
 
-    pl_name = STAT_FILES / 'pickles/lbounds'
-    pu_name = STAT_FILES / 'pickles/ubounds'
-    lbounds = pickle.load(open(pl_name, "rb"))
-    ubounds = pickle.load(open(pu_name, "rb"))
+    lbounds = copy.deepcopy(LBOUNDS)
+    ubounds = copy.deepcopy(UBOUNDS)
 
     filter_name = []
     i = 0
@@ -352,12 +349,13 @@ def cardsegt(request):
     title = 'The6ixClan: Card Statistics'
     show_df = False
     df = copy.deepcopy(SEGMENT_SUMMARY_QUART)
+    df = df.drop(columns=['homogeneity']).reset_index(drop=True)
 
-    max_cards = len(df.columns) - (8 + 1)  # stats + home_elixr
+    max_cards = len(df.columns) - (7 + 1)  # stats + home_elixr
     card_name = []
     i = 0
     while i < max_cards:
-        card_name.append(df.columns[8 + i])
+        card_name.append(df.columns[7 + i])
         i += 1
     card_id = range(len(card_name))
     card_list = list(zip(card_id, card_name))
@@ -369,10 +367,8 @@ def cardsegt(request):
     sort_id = range(len(sort_name))
     sort_list = list(zip(sort_id, sort_name))
 
-    pl_name = STAT_FILES / 'pickles/lbounds'
-    pu_name = STAT_FILES / 'pickles/ubounds'
-    lbounds = pickle.load(open(pl_name, "rb"))
-    ubounds = pickle.load(open(pu_name, "rb"))
+    lbounds = copy.deepcopy(LBOUNDS)
+    ubounds = copy.deepcopy(UBOUNDS)
 
     rank_name = []
     i = 0
@@ -401,10 +397,10 @@ def cardsegt(request):
 
             usage = pd.DataFrame(np.sort(seg_list), columns=['seg_name']).reset_index()
 
-            col01 = df[df.quartile == 1].iloc[:, [1, df.columns.get_loc(card_seln)]]
-            col02 = df[df.quartile == 2].iloc[:, [1, df.columns.get_loc(card_seln)]]
-            col03 = df[df.quartile == 3].iloc[:, [1, df.columns.get_loc(card_seln)]]
-            col04 = df[df.quartile == 4].iloc[:, [1, df.columns.get_loc(card_seln)]]
+            col01 = df[df.quartile == 1].iloc[:, [0, df.columns.get_loc(card_seln)]]
+            col02 = df[df.quartile == 2].iloc[:, [0, df.columns.get_loc(card_seln)]]
+            col03 = df[df.quartile == 3].iloc[:, [0, df.columns.get_loc(card_seln)]]
+            col04 = df[df.quartile == 4].iloc[:, [0, df.columns.get_loc(card_seln)]]
 
             usage['quart_01'] = col01.set_index('seg_name').reindex(usage['seg_name']).fillna(0).reset_index().iloc[:, 1]
             usage['quart_02'] = col02.set_index('seg_name').reindex(usage['seg_name']).fillna(0).reset_index().iloc[:, 1]
