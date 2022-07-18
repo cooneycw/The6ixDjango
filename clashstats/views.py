@@ -461,7 +461,7 @@ def findsegt(request):
     show_df = False
 
     df = copy.deepcopy(SEGMENT_SUMMARY)
-    deck_df = df.drop(df.columns[range(0, 7)], axis=1)
+    deck_df = df.drop(df.columns[range(0, 6)], axis=1)
     deck_df.drop(deck_df.index, inplace=True)
     deck_df = deck_df.append(pd.Series(0, index=deck_df.columns), ignore_index=True)
 

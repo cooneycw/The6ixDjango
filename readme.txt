@@ -12,3 +12,6 @@
 
 # start the docker network
 # docker network create nginx_network
+
+# start celery worker
+# celery -A The6ix worker --loglevel=info

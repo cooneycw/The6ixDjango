@@ -1,7 +1,7 @@
 from The6ix.settings import STAT_FILES, CLUSTERING, HCLUSTERING, NEW_SEGMENT_MAP, SEGMENT_COLS, \
     CLASH_API, LBOUNDS, UBOUNDS, ANALYSIS_VAR_LIST, ANALYSIS_SEL_COLS, STATS_SEL_COLS, MAX_SEG, MAX_A_SEG, \
     ELIXR_LBOUNDS, ELIXR_UBOUNDS, LR_ANOVA, LR_MODEL, XGB_MODEL, STACKED_MODEL, CARD_OBJ_GET_CARDS, \
-    CARD_LIST_COMPARE_01, CARD_LIST_COMPARE_02
+    CARD_LIST_COMPARE_01, CARD_LIST_COMPARE_02, NN_MODEL, MIN_MAX_SCALER
 
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 import sys
 import xgboost as xgb
+import tensorflow as tf
 import copy
 import datetime
 
@@ -852,10 +853,12 @@ def predict(base_df, base_stats_df, stats_sel_cols, lr_only):
     if lr_only == False:
         base_xg_inp = xgb.DMatrix(data=base_stats_df.values, feature_names=stats_sel_cols)
         base_lr_test = LR_MODEL.predict_proba(base_df)
-        base_xg_test = XGB_MODEL.predict(base_xg_inp)
+        base_stats_df_minmax = MIN_MAX_SCALER.transform(base_stats_df.astype(np.float32))
+        # base_xg_test = XGB_MODEL.predict(base_xg_inp)
+        base_nn_test = NN_MODEL.predict(base_stats_df_minmax)
 
-        base_val = np.concatenate([base_lr_test[:, 1:2], base_xg_test.reshape(-1, 1)], axis=1)
-        # base_val = np.concatenate([base_nn_test[:, 1:2], base_lr_test[:, 1:2]], axis=1)
+        # base_val = np.concatenate([base_lr_test[:, 1:2], base_xg_test.reshape(-1, 1)], axis=1)
+        base_val = np.concatenate([base_lr_test[:, 1:2], base_nn_test[:, 1:2]], axis=1)
         # base_val = np.concatenate([base_val, base_lg_test[:, 1:2]], axis=1)
         # base_val = np.concatenate([base_val, base_gn_test[:, 1:2]], axis=1)
         # base_val = np.concatenate([base_val, base_xg_test.reshape(-1, 1)], axis=1)
